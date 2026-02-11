@@ -100,5 +100,14 @@ def extract_text(filename: str, file_bytes: bytes) -> str:
             return file_bytes.decode("utf-8")
         except UnicodeDecodeError:
             return file_bytes.decode("cp1256", errors="replace")
+    elif ext == ".json":
+        # Handle JSON files - convert to readable text
+        try:
+            import json
+            data = json.loads(file_bytes.decode("utf-8"))
+            # Convert JSON to readable text format
+            return json.dumps(data, ensure_ascii=False, indent=2)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON file: {str(e)}")
     else:
-        raise ValueError(f"Unsupported file type: {ext}. Supported: .pdf, .docx, .txt")
+        raise ValueError(f"Unsupported file type: {ext}. Supported: .pdf, .docx, .txt, .json")

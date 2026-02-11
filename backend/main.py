@@ -1,6 +1,7 @@
 import os
 import logging
 import warnings
+from datetime import datetime
 
 # --- Log Cleaning Setup ---
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3" 
@@ -24,7 +25,8 @@ from models import (
     SummarizeRequest, SummarizeResponse,
     AnalyzeRequest, AnalyzeResponse, CaseClassification,
     LegalPrinciple, TrendStats, Recommendation, SubType, SupportingPrinciple,
-    DraftRequest, DraftResponse, QueryRequest, QueryResponse
+    DraftRequest, DraftResponse, QueryRequest, QueryResponse,
+    ChatRequest, ChatResponse, ChatMessage, SuggestedAction, ClearChatRequest, ConversationSummary
 )
 from data_loader import load_cases
 from similarity_engine import SimilarityEngine
@@ -37,6 +39,7 @@ from entity_extractor import EntityExtractor
 from draft_engine import generate_draft
 import uvicorn
 from text_extractor import extract_text
+from chat_engine import ChatEngine
 
 app = FastAPI(title="Arabic AI Legal Case Analysis Assistant", version="2.0.0")
 
@@ -52,11 +55,12 @@ app.add_middleware(
 # Global engines & data
 similarity_engine = None
 summarizer_engine = None
+chat_engine = None
 all_cases_global = []  # Keep reference for trend analysis
 
 @app.on_event("startup")
 async def startup_event():
-    global similarity_engine, summarizer_engine, all_cases_global
+    global similarity_engine, summarizer_engine, chat_engine, all_cases_global
     
     logger.info("Initializing AI Legal Intelligence Platform v2.0...")
     try:
@@ -74,9 +78,14 @@ async def startup_event():
         logger.info("Loading Extractive Summarizer Engine...")
         summarizer_engine = SummarizerEngine()
         
+        # Initialize Chat Engine
+        logger.info("Loading Chat Engine...")
+        chat_engine = ChatEngine()
+        
         logger.info("✅ System ready. All engines loaded successfully.")
         logger.info("   🔍 Similarity Engine: READY")
         logger.info("   📝 Summarizer Engine: READY")
+        logger.info("   💬 Chat Engine: READY")
         logger.info("   🏷️ Classification Engine: READY")
         logger.info("   ⚖️ Legal Principles Engine: READY")
         logger.info("   📊 Trend Analyzer: READY")
@@ -93,6 +102,7 @@ async def health_check():
         "engines": {
             "similarity": similarity_engine is not None,
             "summarizer": summarizer_engine is not None,
+            "chat": chat_engine is not None,
             "classification": True,
             "legal_principles": True,
             "trend_analyzer": True,
@@ -294,7 +304,8 @@ async def upload_document(file: UploadFile = File(...)):
     allowed_types = [
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "text/plain"
+        "text/plain",
+        "application/json"
     ]
     
     # Simple extension check as fallback
@@ -305,9 +316,9 @@ async def upload_document(file: UploadFile = File(...)):
          logger.warning(f"Rejected .doc file: {file.filename}")
          raise HTTPException(status_code=400, detail="Legacy word files (.doc) are not supported. Please save as .docx and try again.")
 
-    if ext not in [".pdf", ".docx", ".txt"] and file.content_type not in allowed_types:
+    if ext not in [".pdf", ".docx", ".txt", ".json"] and file.content_type not in allowed_types:
           logger.warning(f"Unsupported file type: ext='{ext}', content_type='{file.content_type}'")
-          raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: PDF, DOCX, TXT. Got: {file.content_type} (ext: {ext})")
+          raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: PDF, DOCX, TXT, JSON. Got: {file.content_type} (ext: {ext})")
     
     # Max file size: 10MB
     MAX_SIZE = 10 * 1024 * 1024
@@ -407,6 +418,104 @@ async def get_analytics():
         }
     except Exception as e:
         logger.error(f"Analytics error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Chat Endpoint (NEW - Chatbot Interface) ───────────────────────────
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """
+    Main chat endpoint for conversational interactions.
+    Accepts user messages and optional analysis context.
+    """
+    global chat_engine
+    
+    if not chat_engine:
+        raise HTTPException(status_code=503, detail="Chat engine not initialized")
+    
+    try:
+        logger.info(f"Chat request: {request.message[:50]}...")
+        logger.info(f"Message length: {len(request.message)}, Has analysis: {request.analysis_data is not None}")
+        
+        # Convert analysis_data if provided
+        analysis_dict = request.analysis_data.dict() if request.analysis_data else None
+        
+        # Process message through chat engine
+        response = chat_engine.process_message(
+            user_message=request.message,
+            analysis_data=analysis_dict,
+            case_text=request.case_text
+        )
+        
+        logger.info(f"Detected intent: {response.get('intent')}")
+        logger.info(f"Response text (first 50 chars): {response['text'][:50]}...")
+        
+        # Convert response to ChatResponse model
+        suggested_actions = [
+            SuggestedAction(**action) if isinstance(action, dict) else action
+            for action in response.get("suggested_actions", [])
+        ]
+        
+        return ChatResponse(
+            text=response["text"],
+            intent=response["intent"],
+            suggested_actions=suggested_actions,
+            timestamp=datetime.now().isoformat(),
+            metadata=response.get("metadata", {}),
+            error=response.get("error")
+        )
+        
+    except Exception as e:
+        logger.error(f"Chat error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/chat/history")
+async def get_chat_history():
+    """Retrieve conversation history."""
+    global chat_engine
+    
+    if not chat_engine:
+        raise HTTPException(status_code=503, detail="Chat engine not initialized")
+    
+    try:
+        history = chat_engine.get_conversation_history()
+        return {"messages": history}
+    except Exception as e:
+        logger.error(f"History retrieval error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/chat/context")
+async def get_chat_context():
+    """Get current chat context summary."""
+    global chat_engine
+    
+    if not chat_engine:
+        raise HTTPException(status_code=503, detail="Chat engine not initialized")
+    
+    try:
+        context = chat_engine.get_context_summary()
+        return ConversationSummary(**context)
+    except Exception as e:
+        logger.error(f"Context retrieval error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat/clear")
+async def clear_chat(request: ClearChatRequest):
+    """Clear chat history and context."""
+    global chat_engine
+    
+    if not chat_engine:
+        raise HTTPException(status_code=503, detail="Chat engine not initialized")
+    
+    try:
+        chat_engine.clear_conversation()
+        return {"status": "cleared", "message": "Chat history cleared successfully"}
+    except Exception as e:
+        logger.error(f"Clear chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
