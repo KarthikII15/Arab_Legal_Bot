@@ -124,3 +124,36 @@ class QueryResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
 
 
+# ── Chat Models (NEW - Chatbot Interface) ──────────────────────────────
+
+class SuggestedAction(BaseModel):
+    label: str
+    action: str
+
+class ChatMessage(BaseModel):
+    timestamp: str
+    role: str  # "user" or "assistant"
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+
+class ChatRequest(BaseModel):
+    message: str
+    analysis_data: Optional[AnalyzeResponse] = None
+    case_text: Optional[str] = None
+    conversation_history: Optional[List[ChatMessage]] = None
+
+class ChatResponse(BaseModel):
+    text: str
+    intent: str
+    suggested_actions: List[SuggestedAction] = []
+    timestamp: str
+    metadata: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+class ClearChatRequest(BaseModel):
+    confirm: bool = True
+
+class ConversationSummary(BaseModel):
+    has_analysis: bool
+    message_count: int
+    analysis_keys: List[str] = []

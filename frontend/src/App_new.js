@@ -21,67 +21,26 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send greeting message on mount (from backend)
-  useEffect(() => {
-    const sendGreeting = async () => {
-      setMessages(prevMessages => {
-        if (prevMessages.length === 0) {
-          // Add loading state
-          const loadingMsg = {
-            id: Date.now(),
-            role: 'assistant',
-            content: "جاري التحميل...",
-            intent: "loading",
-            suggestedActions: [],
-            timestamp: new Date().toISOString()
-          };
-          return [loadingMsg];
-        }
-        return prevMessages;
-      });
-
-      // Fetch greeting from backend
-      try {
-        const response = await axios.post(`${API_BASE}/chat`, {
-          message: "مرحبا"
-        });
-        const { text, intent, suggested_actions } = response.data;
-        
-        // Replace loading message with actual greeting
-        setMessages(prevMessages => {
-          const filtered = prevMessages.filter(m => m.intent !== "loading");
-          return [...filtered, {
-            id: Date.now(),
-            role: 'assistant',
-            content: text,
-            intent: intent,
-            suggestedActions: suggested_actions || [],
-            timestamp: new Date().toISOString()
-          }];
-        });
-      } catch (error) {
-        console.error("Error loading greeting:", error);
-        addAssistantMessage(
-          "خطأ في جلب الرسالة الترحيبية. يرجى تحديث الصفحة.\n\nError loading greeting. Please refresh the page.",
-          "error",
-          []
-        );
-      }
-    };
-
-    sendGreeting();
-  }, []);
-
-  // Check health on mount and periodically
+  // Check health on mount
   useEffect(() => {
     checkHealth();
     const interval = setInterval(checkHealth, 5000);
+    
+    // Send greeting message
+    if (messages.length === 0) {
+      addAssistantMessage(
+        "مرحباً! أنا مساعدك القانوني الذكي المتخصص في تحليل القضايا السعودية.\n\nللبدء، يمكنك:\n1. رفع ملف قضية (PDF, DOCX)\n2. لصق نص القضية مباشرة\n3. طرح أسئلة حول القضايا\n\n---\n\nHello! I'm your AI Legal Assistant specializing in Saudi legal case analysis.\n\nTo get started, you can:\n1. Upload a case file (PDF, DOCX)\n2. Paste case text directly\n3. Ask questions about cases",
+        "greeting",
+        []
+      );
+    }
+    
     return () => clearInterval(interval);
   }, []);
 
   const checkHealth = async () => {
     try {
-      await axios.get(`${API_BASE}/health`);
+      const res = await axios.get(`${API_BASE}/health`);
       setHealthStatus("Connected ✅");
     } catch (err) {
       setHealthStatus("Disconnected ❌");
@@ -190,12 +149,6 @@ function App() {
       case "upload":
         document.getElementById("file-input").click();
         break;
-      case "paste_text":
-        sendChatMessage("أريد لصق نص القضية\nI want to paste case text");
-        break;
-      case "learn_more":
-        sendChatMessage("أخبرني المزيد عن الخدمات\nTell me more about the services");
-        break;
       case "case_summary":
         sendChatMessage("ملخص القضية (case summary)");
         break;
@@ -217,11 +170,7 @@ function App() {
       case "draft_defense":
         sendChatMessage("كتابة مذكرة دفاع (write defense memo)");
         break;
-      case "full_analysis":
-        sendChatMessage("تحليل شامل (full analysis)");
-        break;
       default:
-        // For any other action, send it as a message
         sendChatMessage(action);
     }
   };
