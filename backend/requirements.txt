@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+sentence-transformers
+faiss-cpu
+torch
+transformers
+sentencepiece
+pandas
+scikit-learn
+python-multipart
+pymupdf
+python-docx
