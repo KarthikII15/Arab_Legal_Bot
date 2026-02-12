@@ -28,7 +28,10 @@ function App() {
   const [viewingCase, setViewingCase] = useState(null);
 
   // Conversation management
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] = useState(() => {
+    const saved = localStorage.getItem('conversations');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
   const messagesEndRef = useRef(null);
@@ -71,6 +74,22 @@ function App() {
     document.documentElement.setAttribute('data-font-size', fontSize);
     localStorage.setItem('fontSize', fontSize);
   }, [fontSize]);
+
+  // Sync current messages/analysis to conversation list for persistence in session
+  useEffect(() => {
+    if (currentConversationId) {
+      setConversations(prev => prev.map(conv =>
+        conv.id === currentConversationId
+          ? { ...conv, messages: [...messages], analysis: analysis }
+          : conv
+      ));
+    }
+  }, [messages, analysis, currentConversationId]);
+
+  // Persistence Management
+  useEffect(() => {
+    localStorage.setItem('conversations', JSON.stringify(conversations));
+  }, [conversations]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -167,7 +186,9 @@ function App() {
           id: newConvId,
           title: userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : ''),
           preview: 'محادثة نصية',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: text, translation: assistant_translation, citations: citations || [], timestamp: new Date().toISOString() }],
+          analysis: analysis
         }, ...prev]);
       } else if (!conversations.find(c => c.id === currentConversationId)) {
         // Fallback for cases where ID is set but not in list
@@ -175,7 +196,9 @@ function App() {
           id: currentConversationId,
           title: userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : ''),
           preview: 'محادثة نصية',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: text, translation: assistant_translation, citations: citations || [], timestamp: new Date().toISOString() }],
+          analysis: analysis
         }, ...prev]);
       }
 
@@ -225,7 +248,9 @@ function App() {
           id: newConvId,
           title: response.data.classification.name_ar,
           preview: file.name,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: `✅ تم تحليل الملف بنجاح!\n\n📋 نوع القضية: ${response.data.classification.name_ar}\n📊 درجة الثقة: ${confidence}%\n\n---\n\n✅ File analyzed successfully!`, intent: "file_analyzed", timestamp: new Date().toISOString() }],
+          analysis: response.data
         }, ...prev]);
       }
 
@@ -241,13 +266,15 @@ function App() {
   };
 
   const handleNewChat = () => {
+    // Reset backend context
+    axios.post(`${API_BASE}/chat/clear`, { confirm: true }).catch(err => console.error(err));
+
     const newConvId = Date.now();
     setCurrentConversationId(newConvId);
     setMessages([]);
     setAnalysis(null);
     setSelectedFile(null);
     greetingSent.current = false;
-
     // Trigger greeting again
     addAssistantMessage(
       "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n• 📊 تحليل القضايا\n• ⚖️ تصنيف القضايا\n• 💡 التوصيات القانونية\n• 🔍 البحث في السوابق",
@@ -256,7 +283,16 @@ function App() {
   };
 
   const handleSelectConversation = (convId) => {
-    setCurrentConversationId(convId);
+    const selected = conversations.find(c => c.id === convId);
+    if (selected) {
+      setCurrentConversationId(convId);
+      setMessages(selected.messages || []);
+      setAnalysis(selected.analysis || null);
+      // Mark greeting as sent if we have messages so it doesn't re-trigger
+      if (selected.messages && selected.messages.length > 0) {
+        greetingSent.current = true;
+      }
+    }
   };
 
   const handleDeleteConversation = (convId) => {

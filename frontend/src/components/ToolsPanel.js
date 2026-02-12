@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCcw, Copy, Download, FileText, ChevronRight, Info } from 'lucide-react';
+import { RotateCcw, Copy, Download, FileText } from 'lucide-react';
 /* jsPDF import removed, logic moved to App.js */
 
 /**

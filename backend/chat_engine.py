@@ -59,8 +59,8 @@ class ConversationContext:
         if len(self.messages) > self.max_history:
             self.messages = self.messages[-self.max_history:]
     
-    def set_analysis(self, analysis_data: Dict, case_text: str):
-        """Store the current case analysis data."""
+    def set_analysis(self, analysis_data: Optional[Dict], case_text: Optional[str] = None):
+        """Store or clear the current case analysis data."""
         self.analysis_data = analysis_data
         self.case_text = case_text
     
@@ -158,14 +158,15 @@ class ChatEngine:
             
         case_markers = [
             "الوقائع", "الأسباب", "منطوق الحكم", "حكمت المحكمة", 
-            "المدعي", "المدعى عليه", "قضية رقم", "بناءً على"
+            "المدعي", "المدعى عليه", "قضية رقم", "بناءً على",
+            "facts", "reasoning", "judgment", "ruling", "plaintiff", "defendant", "case no", "based on"
         ]
         
         # Count how many markers are present
-        matches = sum(1 for marker in case_markers if marker in text)
+        matches = sum(1 for marker in case_markers if marker.lower() in text.lower())
         
         # If it's long and has legal terms, it's likely a case description
-        return matches >= 2 or (len(text) > 500 and matches >= 1)
+        return matches >= 2 or (len(text) > 400 and matches >= 1)
 
     def detect_intent(self, query: str) -> str:
         """Detect user's intent from their message with priority for specific actions."""
@@ -215,8 +216,10 @@ class ChatEngine:
     ) -> Dict[str, Any]:
         """Process a user message and generate an appropriate response."""
         try:
-            if analysis_data:
-                self.context.set_analysis(analysis_data, case_text)
+            # Sync analysis data from frontend if provided (even if None)
+            if analysis_data is not None or "analysis_data" in locals():
+                 # We only reset if we aren't in the middle of an auto-analysis sequence
+                 self.context.set_analysis(analysis_data, case_text)
             
             self.context.add_message("user", user_message)
             
@@ -230,13 +233,25 @@ class ChatEngine:
             
             intent = self.detect_intent(user_message)
             
-            if intent == "case_summary" and not self.context.analysis_data and self.analyzer:
+            # Detect if this is a NEW case description requiring re-analysis
+            is_new_case_input = False
+            if intent == "case_summary" and self.analyzer:
+                if not self.context.analysis_data:
+                    is_new_case_input = True
+                elif len(user_message) > 400:
+                    # Check if text is significantly different from current context
+                    current_text = self.context.case_text or ""
+                    if user_message[:100].lower() != current_text[:100].lower():
+                        is_new_case_input = True
+
+            if is_new_case_input:
                 try:
+                    logger.info("New case input detected. Triggering re-analysis...")
                     analysis_result = await self.analyzer(user_message)
                     analysis_dict = analysis_result.dict()
                     self.context.set_analysis(analysis_dict, user_message)
                 except Exception as e:
-                    logger.error(f"Decisive analysis failed: {e}")
+                    logger.error(f"Auto-analysis failed: {e}")
 
             response = await self._generate_response(user_message, intent)
             
@@ -259,7 +274,7 @@ class ChatEngine:
 
             if "text" in response:
                 current_analysis = self.context.analysis_data or analysis_data or {}
-                amount = current_analysis.get("recommendation", {}).get("award_amount") or "............"
+                amount = current_analysis.get("recommendation", {}).get("award_amount") or "[قيد التقدير]"
                 facts = {"amount": amount, "المبلغ": amount}
                 response["text"] = self._clean_draft(response["text"], facts)
 
@@ -367,26 +382,26 @@ How can I help you today?""",
         win_rate = trends.get("plaintiff_win_rate", "N/A")
         sample_size = trends.get("sample_size", 0)
         
-        response_ar = f"""[Summary] ملخص التحليل:
-
+        response_ar = f"""### ملخص التحليل الاستشاري
+ 
 **نوع القضية:** {clf.get('name_ar', 'N/A')}
-**نسبة فوز المدعي (تاريخياً):** {win_rate}% (بناءً على {sample_size} سوابق قضائية)
-
-**المبادئ القانونية المطبقة:**
+**الموقف القانوني:** بناءً على {sample_size} سوابق قضائية مماثلة، تبلغ نسبة فوز المدعي حوالي {win_rate}%.
+ 
+**المبادئ القانونية المستند إليها:**
 {principles_text_ar}
-
-**التوصية:**
+ 
+**التوصية القانونية:**
 {rec_text_ar}"""
-
-        response_en = f"""[Summary] **Case Analysis Summary:**
-
+ 
+        response_en = f"""### Consultative Analysis Summary
+ 
 **Case Type:** {clf.get('name_en', 'N/A')}
-**Historical Plaintiff Win Rate:** {win_rate}% (Based on {sample_size} local precedents)
-
+**Legal Position:** Based on {sample_size} historical precedents, the plaintiff win rate is approximately {win_rate}%.
+ 
 **Applicable Legal Principles:**
 {principles_text_en}
-
-**Recommendation:**
+ 
+**Professional Recommendation:**
 {rec_text_en}"""
 
         return {
@@ -573,76 +588,76 @@ Case Classification:
         }
     
     # --- STATIC LEGAL TEMPLATES ---
-    CLAIM_TEMPLATE = """[Draft] **مسودة لائحة دعوى:**
-
-إلى محكمة: {court_name}
-موضوع الدعوى: {case_type}
-
-1. الأطراف:
-   - المدعي: ............
-   - المدعى عليه: ............
-
-2. وقائع الدعوى:
+    CLAIM_TEMPLATE = """### مسودة لائحة دعوى
+ 
+**إلى محكمة:** {court_name}
+**موضوع الدعوى:** {case_type}
+ 
+#### 1. الأطراف:
+- **المدعي:** [يتم إدراج الاسم هنا]
+- **المدعى عليه:** [يتم إدراج الاسم هنا]
+ 
+#### 2. وقائع الدعوى:
 {facts_summary}
-
-3. الأسانيد النظامية والشرعية:
+ 
+#### 3. الأسانيد النظامية والشرعية:
 {legal_basis}
-
-4. الطلبات:
-   - إلزام المدعى عليه بدفع مبلغ ({amount}) ريال سعودي.
-   - إلزام المدعى عليه بكافة المصاريف القضائية.
-
+ 
+#### 4. الطلبات:
+- إلزام المدعى عليه بدفع مبلغ وقدره **({amount} ريال سعودي)**.
+- إلزام المدعى عليه بكافة المصاريف القضائية وأتعاب المحاماة.
+ 
 ---
-[Draft] **Plaintiff Claim Draft:**
-
-1. Parties:
-   - Plaintiff: ............
-   - Defendant: ............
-
-2. Factual Summary:
+### Plaintiff's Claim Draft
+ 
+#### 1. Parties:
+- **Plaintiff:** [Insert Name]
+- **Defendant:** [Insert Name]
+ 
+#### 2. Factual Summary:
 {facts_summary_en}
-
-3. Legal Grounds:
+ 
+#### 3. Legal Grounds:
 {legal_basis_en}"""
-
-    DEFENSE_TEMPLATE = """[Draft] **مذكرة دفاع:**
-
-إلى محكمة: {court_name}
-
-1. الأطراف:
-   - المدعي: ............
-   - المدعى عليه: ............
-
-2. ملخص الرد:
+ 
+    DEFENSE_TEMPLATE = """### مسودة مذكرة دفاع
+ 
+**إلى محكمة:** {court_name}
+ 
+#### 1. الأطراف:
+- **المدعي:** [يتم إدراج الاسم هنا]
+- **المدعى عليه:** [يتم إدراج الاسم هنا]
+ 
+#### 2. ملخص الرد:
 {facts_summary}
-
-3. الدفوع:
+ 
+#### 3. الدفوع القانونية:
 {legal_basis}
-
-4. الطلبات:
-   - رد الدعوى لعدم الصحة."""
-
-    APPEAL_TEMPLATE = """[Draft] **مذكرة اعتراض:**
-
-1. وقائع القضية:
+ 
+#### 4. الطلبات:
+- الحكم بصرف النظر عن الدعوى لعدم الصحة والجدارة."""
+ 
+    APPEAL_TEMPLATE = """### مسودة مذكرة اعتراض
+ 
+#### 1. وقائع القضية:
 {facts_summary}
-
-2. أسباب الاعتراض:
+ 
+#### 2. أسباب الاعتراض:
 {legal_basis}
-
-3. الطلبات:
-   - قبول الاعتراض شكلاً وموضوعاً."""
-
-    ENFORCEMENT_TEMPLATE = """[Draft] **طلب تنفيذ:**
-
-1. طالب التنفيذ: ............
-2. المنفذ ضده: ............
-
-3. ملخص المستحقات:
+ 
+#### 3. الطلبات:
+- قبول الاعتراض شكلاً وموضوعاً، ونقض الحكم الصادر."""
+ 
+    ENFORCEMENT_TEMPLATE = """### مسودة طلب تنفيذ
+ 
+- **طالب التنفيذ:** [يتم إدراج الاسم هنا]
+- **المنفذ ضده:** [يتم إدراج الاسم هنا]
+ 
+#### 1. ملخص المستحقات:
 {facts_summary}
-
-4. الطلبات:
-   - إلزام المنفذ ضده بدفع مبلغ ({amount}) ريال سعودي."""
+ 
+#### 2. الطلبات الإجرائية:
+- إلزام المنفذ ضده بسداد مبلغ وقدره **({amount} ريال سعودي)** فوراً."""
 
     async def _handle_draft_request(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Handle draft selection."""

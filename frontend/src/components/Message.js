@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Copy, RotateCcw, ThumbsUp, ThumbsDown } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 /**
  * Message Component
  * Display single message with actions (copy, regenerate, feedback)
- * Supports rich content including citations
+ * Supports rich content including markdown and citations
  */
 export function Message({
   message,
@@ -45,7 +46,7 @@ export function Message({
       {/* Message Content */}
       <div className="message-bubble">
         <div className="message-text">
-          {message.content}
+          <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
 
         {/* Translation Block */}
@@ -53,15 +54,15 @@ export function Message({
           <div className="message-translation">
             <div className="translation-divider"></div>
             <div className="translation-content">
-              {message.translation}
+              <ReactMarkdown>{message.translation}</ReactMarkdown>
             </div>
           </div>
         )}
 
         {/* Citations */}
         {message.citations && message.citations.length > 0 && (
-          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid currentColor', opacity: 0.8 }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+          <div className="citations-container">
+            <div className="citations-header">
               المصادر | Sources:
             </div>
             {message.citations.map((citation, idx) => (
@@ -92,57 +93,51 @@ export function Message({
         <div className="message-time">
           {new Date(message.timestamp).toLocaleTimeString('ar-SA')}
         </div>
+
+        {/* Action Buttons (Now Inside Bubble) */}
+        {showActions && !isUser && (
+          <div className="message-actions">
+            {/* Copy Button */}
+            <button
+              className="action-button"
+              onClick={handleCopy}
+              title={copied ? '✓ تم النسخ' : 'نسخ'}
+            >
+              <Copy size={12} className="btn-icon-spacing" />
+              {copied ? '✓ تم النسخ' : 'نسخ'}
+            </button>
+
+            {/* Regenerate Button */}
+            <button
+              className="action-button"
+              onClick={handleRegenerate}
+              title="إعادة توليد"
+            >
+              <RotateCcw size={12} className="btn-icon-spacing" />
+              إعادة توليد
+            </button>
+
+            {/* Feedback Buttons */}
+            <div className="feedback-group">
+              <button
+                className={`action-button feedback-btn ${feedbackGiven === 'positive' ? 'active' : ''}`}
+                onClick={() => handleFeedback('positive')}
+                title="إجابة مفيدة"
+              >
+                <ThumbsUp size={12} />
+              </button>
+
+              <button
+                className={`action-button feedback-btn ${feedbackGiven === 'negative' ? 'active' : ''}`}
+                onClick={() => handleFeedback('negative')}
+                title="إجابة غير مفيدة"
+              >
+                <ThumbsDown size={12} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Action Buttons */}
-      {showActions && !isUser && (
-        <div className="message-actions">
-          {/* Copy Button */}
-          <button
-            className="action-button"
-            onClick={handleCopy}
-            title={copied ? '✓ تم النسخ' : 'نسخ'}
-          >
-            <Copy size={14} style={{ marginRight: '0.25rem' }} />
-            {copied ? '✓ تم النسخ' : 'نسخ'}
-          </button>
-
-          {/* Regenerate Button */}
-          <button
-            className="action-button"
-            onClick={handleRegenerate}
-            title="إعادة توليد"
-          >
-            <RotateCcw size={14} style={{ marginRight: '0.25rem' }} />
-            إعادة توليد
-          </button>
-
-          {/* Feedback Buttons */}
-          <button
-            className={`action-button ${feedbackGiven === 'positive' ? 'active' : ''}`}
-            onClick={() => handleFeedback('positive')}
-            title="إجابة مفيدة"
-            style={{
-              background: feedbackGiven === 'positive' ? 'var(--color-success-pale)' : 'transparent',
-              color: feedbackGiven === 'positive' ? 'var(--color-success)' : 'var(--color-primary)'
-            }}
-          >
-            <ThumbsUp size={14} />
-          </button>
-
-          <button
-            className={`action-button ${feedbackGiven === 'negative' ? 'active' : ''}`}
-            onClick={() => handleFeedback('negative')}
-            title="إجابة غير مفيدة"
-            style={{
-              background: feedbackGiven === 'negative' ? 'var(--color-error-pale)' : 'transparent',
-              color: feedbackGiven === 'negative' ? 'var(--color-error)' : 'var(--color-primary)'
-            }}
-          >
-            <ThumbsDown size={14} />
-          </button>
-        </div>
-      )}
     </div>
   );
 }

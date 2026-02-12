@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Sun, Moon, Trash2, Type } from 'lucide-react';
+import { X, Sun, Moon, Trash2 } from 'lucide-react';
 
 /**
  * SettingsModal Component
