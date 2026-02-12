@@ -384,41 +384,42 @@ How can I help you today?""",
         rec_text_ar = recommendation.get("recommendation_ar", "لم تتوفر توصيات") if recommendation else "لم تتوفر توصيات"
         rec_text_en = recommendation.get("recommendation_en", "No recommendations available") if recommendation else "No recommendations available"
         win_rate = trends.get("plaintiff_win_rate", "N/A") if trends else "N/A"
+        sample_size = trends.get("sample_size", 0)
         
         # Format confidence
         conf_val = clf.get('confidence', 0)
         if isinstance(conf_val, float) and conf_val <= 1.0:
             conf_val = round(conf_val * 100)
-            
-        return {
-            "text": f"""[Summary] ملخص التحليل:
-            
-**نوع القضية:** {clf.get('name_ar', 'غير محدد')}
+          # Prepare Response - lead with Arabic
+        response_ar = f"""[Summary] ملخص التحليل:
+
+**نوع القضية:** {clf.get('name_ar', 'N/A')}
 **درجة الثقة:** {conf_val}%
-**نسبة فوز المدعي:** {win_rate}%
+**نسبة فوز المدعي:** {win_rate}% (بناءً على {sample_size} سوابق قضائية)
 
 **المبادئ القانونية المطبقة:**
-{principles_text_ar}
+{principles_ar}
 
 **التوصية:**
-{rec_text_ar}
+{rec_ar}"""
 
----
+        response_en = f"""[Summary] **Case Analysis Summary:**
 
-[Summary] **Case Analysis Summary:**
-
-**Case Type:** {clf.get('name_en', 'Not determined')}
+**Case Type:** {clf.get('name_en', 'N/A')}
 **Confidence:** {conf_val}%
-**Plaintiff Win Rate:** {win_rate}%
+**Plaintiff Win Rate:** {win_rate}% (Based on {sample_size} local precedents)
 
 **Applicable Legal Principles:**
-{principles_text_en}
+{principles_en}
 
 **Recommendation:**
-{rec_text_en}""",
+{rec_en}"""
+
+        return {
+            "text": f"{response_ar}\n\n---\n\n{response_en}",
             "intent": "case_summary",
             "suggested_actions": [
-                {"label": "📊 Full Details | عرض التفاصيل الكاملة", "action": "show_details"},
+                {"label": "📊 Full Details | عرض التفاصيل الكاملة", "action": "full_analysis"},
                 {"label": "🔍 Similar Cases | قضايا مشابهة", "action": "similar_cases"},
                 {"label": "💡 Recommendations | التوصيات", "action": "recommendations"}
             ]
@@ -483,35 +484,34 @@ Case Classification:
         ar_comp = f"{avg_compensation} ريال" if avg_compensation != 'N/A' else "بيانات التعويض غير كافية حالياً"
         en_comp = f"{avg_compensation} SAR" if avg_compensation != 'N/A' else "Insufficient historical compensation data available"
         
-        ar_win_block = f"• نسبة فوز المدعي: {ar_win}" if not is_judgement else "• حالة القضية:تم الحكم فيها (تم التحصيل أو الاعتراض)"
-        en_win_block = f"• Plaintiff Win Rate: {en_win}" if not is_judgement else "• Case Status: Already Judged (Enforcement/Appeal phase)"
+        case_type_ar = classification.get('name_ar', 'قضيتك')
+        case_type_en = classification.get('name_en', 'your case')
+        sample_size = trends.get('sample_size', 0)
+        reliability_val = trends.get('reliability', 'N/A')
 
-        text_ar = f"""🔍 نتائج البحث عن قضايا مشابهة:
+        case_status_ar = f"نسبة فوز المدعي: {win_rate}%" if not is_judgement else "تم الحكم فيها (تم التحصيل أو الاعتراض)"
+        case_status_en = f"Plaintiff Win Rate: {win_rate}%" if not is_judgement else "Already Judged (Enforcement/Appeal phase)"
 
-لقد وجدنا قضايا مرتبطة بنوع: **{classification.get('name_ar', 'قضيتك')}**.
+        ar_text = f"""🔍 نتائج البحث عن قضايا مشابهة:
+
+لقد وجدنا قضايا مرتبطة بنوع: **{case_type_ar}**. (إجمالي العينة: {sample_size} قضايا)
 
 **الإحصائيات المستخلصة من السوابق:**
-{ar_win_block}
+• حالة القضية: {case_status_ar}
 • متوسط التعويض: {ar_comp}
-• درجة موثوقية البيانات: {reliability}%"""
+• درجة موثوقية البيانات: {reliability_val}%"""
 
-        text_en = f"""🔍 **Similar Case Results:**
+        en_text = f"""🔍 **Similar Case Results:**
 
-We found precedents related to: **{classification.get('name_en', 'your case')}**.
+We found precedents related to: **{case_type_en}**. (Total sample: {sample_size} cases)
 
 **Extracted Trend Data:**
-{en_win_block}
+• Case Status: {case_status_en}
 • Average Compensation: {en_comp}
-• Data Reliability: {reliability}%"""
-
-        # Adaptive Language response
-        if user_lang == "ar":
-            final_text = text_ar + "\n\n---\n\n" + text_en
-        else:
-            final_text = text_en + "\n\n---\n\n" + text_ar
+• Data Reliability: {reliability_val}%"""
 
         return {
-            "text": final_text,
+            "text": f"{ar_text}\n\n---\n\n{en_text}",
             "intent": "similar_cases",
             "suggested_actions": [
                 {"label": "📊 Full Analysis | تحليل شامل", "action": "full_analysis"},
@@ -556,30 +556,30 @@ These principles are important in analyzing your case.""",
         }
     
     async def _handle_trends(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Respond with trend statistics."""
+        """Respond with trend statistics (lead with Arabic + cite sample size)."""
         if "trends" not in analysis:
             return self._handle_general_inquiry(query, analysis)
         
         trends = analysis["trends"]
-        return {
-            "text": f"""الاتجاهات الإحصائية:
+        sample_size = trends.get("sample_size", 0)
+        
+        ar_text = f"""الاتجاهات الإحصائية (بناءً على {sample_size} سوابق):
 
 **معدل فوز المدعي:** {trends.get('plaintiff_win_rate', 0)}%
-**معدل الرفض:** {trends.get('dismissal_rate', 0)}%
-**معدل الاختصاص:** {trends.get('jurisdiction_rate', 0)}%
-**موثوقية البيانات:** {trends.get('reliability', 0)}%
+**درجة موثوقية البيانات:** {trends.get('reliability', 'N/A')}
+**نطاق التعويض:** {trends.get('compensation_range', {}).get('min', 0)} - {trends.get('compensation_range', {}).get('max', 0)} ريال"""
 
----
-
-Trend Statistics:
+        en_text = f"""Trend Statistics (Based on {sample_size} cases):
 
 **Plaintiff Win Rate:** {trends.get('plaintiff_win_rate', 0)}%
-**Dismissal Rate:** {trends.get('dismissal_rate', 0)}%
-**Jurisdiction Rate:** {trends.get('jurisdiction_rate', 0)}%
-**Data Reliability:** {trends.get('reliability', 0)}%""",
+**Data Reliability:** {trends.get('reliability', 'N/A')}
+**Compensation Range:** {trends.get('compensation_range', {}).get('min', 0)} - {trends.get('compensation_range', {}).get('max', 0)} SAR"""
+
+        return {
+            "text": f"{ar_text}\n\n---\n\n{en_text}",
             "intent": "trends",
             "suggested_actions": [
-                {"label": "💡 Full Recommendations | التوصيات الشاملة", "action": "recommendation"}
+                {"label": "💡 Recommendations | التوصيات", "action": "recommendations"}
             ]
         }
     
@@ -662,22 +662,22 @@ Trend Statistics:
         if isinstance(conf_val, float) and conf_val <= 1.0:
             conf_val = round(conf_val * 100)
             
-        return {
-            "text": f"""تحليل شامل للقضية:
+        ar_text = f"""تحليل شامل للقضية:
 
 **التصنيف:** {clf.get('name_ar', 'N/A')}
-**معدل فوز المدعي:** {trends.get('plaintiff_win_rate', 0)}%
+**معدل فوز المدعي:** {trends.get('plaintiff_win_rate', 0)}% (بناءً على {trends.get('sample_size', 0)} سوابق)
 **الاتجاه:** {rec.get('direction', 'N/A')}
-**درجة التأكد:** {conf_val}%
+**درجة التأكد:** {conf_val}%"""
 
----
-
-Comprehensive Case Analysis:
+        en_text = f"""Comprehensive Case Analysis:
 
 **Classification:** {clf.get('name_en', 'N/A')}
-**Plaintiff Win Rate:** {trends.get('plaintiff_win_rate', 0)}%
+**Plaintiff Win Rate:** {trends.get('plaintiff_win_rate', 0)}% (Based on {trends.get('sample_size', 0)} cases)
 **Recommendation Direction:** {rec.get('direction', 'N/A')}
-**Confidence Level:** {conf_val}%""",
+**Confidence Level:** {conf_val}%"""
+
+        return {
+            "text": f"{ar_text}\n\n---\n\n{en_text}",
             "intent": "full_analysis",
             "suggested_actions": [
                 {"label": "📝 Draft Claim | كتابة لائحة دعوى", "action": "draft_claim"},
@@ -685,6 +685,87 @@ Comprehensive Case Analysis:
             ]
         }
     
+    # --- STATIC LEGAL TEMPLATES (Hybrid System) ---
+    CLAIM_TEMPLATE = """[Draft] **مسودة لائحة دعوى (Hybrid AI-Validated):**
+
+إلى محكمة: {court_name}
+موضوع الدعوى: {case_type}
+
+١. الأطراف:
+   - المدعي: ............
+   - المدعى عليه: ............
+
+٢. وقائع الدعوى:
+{facts_summary}
+
+٣. الأسانيد النظامية والشرعية:
+{legal_basis}
+
+٤. الطلبات:
+   - إلزام المدعى عليه بدفع مبلغ ({amount}) ريال سعودي.
+   - إلزام المدعى عليه بكافة المصاريف القضائية.
+   - أي طلبات أخرى يراها فضيلة القاضي.
+
+---
+[Draft] **Plaintiff Claim Draft (Hybrid AI-Validated):**
+
+To the Court: {court_name_en}
+Subject: {case_type_en}
+
+1. Parties:
+   - Plaintiff: ............
+   - Defendant: ............
+
+2. Factual Summary:
+{facts_summary_en}
+
+3. Legal Grounds:
+{legal_basis_en}
+
+4. Relief Requested:
+   - Compel the defendant to pay ({amount}) SAR.
+   - Compel the defendant to pay all legal costs.
+   - Any other relief the court deems just."""
+
+    DEFENSE_TEMPLATE = """[Draft] **مذكرة دفاع (Hybrid AI-Validated):**
+
+إلى محكمة: {court_name}
+بشأن الدعوى رقم: ............
+
+١. الأطراف:
+   - المدعي: ............
+   - المدعى عليه (مقدم المذكرة): ............
+
+٢. ملخص الرد الموضوعي:
+{facts_summary}
+
+٣. الدفوع النظامية والأسانيد:
+{legal_basis}
+
+٤. الطلبات الختامية:
+   - رد الدعوى لعدم الصحة.
+   - أي طلبات أخرى ذات صلة.
+
+---
+[Draft] **Defense Memo Draft (Hybrid AI-Validated):**
+
+To the Court: {court_name_en}
+Regarding Case No: ............
+
+1. Parties:
+   - Plaintiff: ............
+   - Defendant (Respondent): ............
+
+2. Substantive Response Summary:
+{facts_summary_en}
+
+3. Legal Defenses & Grounds:
+{legal_basis_en}
+
+4. Closing Requests:
+   - Dismiss the claim for lack of validity.
+   - Any other related requests."""
+
     async def _handle_draft_request(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Handle draft generation requests."""
         return {
@@ -711,87 +792,82 @@ Choose the type of draft you want to create:
         }
 
     async def _handle_draft_claim(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Generate a plaintiff claim draft template (or LLM if available)."""
+        """Generate a plaintiff claim draft using Hybrid Template Injection."""
         clf = analysis.get("classification", {})
         case_type_ar = clf.get("name_ar", "غير محدد")
+        case_type_en = clf.get("name_en", "Not specified")
         
-        # Try LLM Generation
+        # Extract award/claim amount
+        amount = analysis.get("recommendation", {}).get("award_amount", "............")
+        
+        # 1. Targeted AI Generation (Summaries ONLY)
+        facts_summary = "............ (يرجى وصف الوقائع هنا)"
+        legal_basis = "............ (يرجى ذكر الأسانيد هنا)"
+        facts_summary_en = "............ (Please describe facts here)"
+        legal_basis_en = "............ (Please cite laws here)"
+        citations = []
+
         if self.llm:
             try:
-                # Fact Sheet extraction for strict grounding
-                clf = analysis.get("classification", {})
-                case_type_ar = clf.get("name_ar", "غير محدد")
-                
-                # Extract award/claim amount
-                amount = analysis.get("recommendation", {}).get("award_amount", "غير محدد")
-                if not amount or amount == 0:
-                    # Try to extract from text if missing in structured data
-                    match = re.search(r"(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(?:ريال|SAR)", self.context.case_text or "")
-                    if match:
-                        amount = match.group(1)
-                
-                fact_sheet = {
-                    "نوع القضية": case_type_ar,
-                    "المبلغ المطالب به": amount,
-                    "المحكمة المختصة": "المحكمة العامة (General Court)",
-                    "حالة القضية": "حكم صادر" if analysis.get("recommendation", {}).get("direction") == "decided_judgement" else "تحت النظر"
-                }
-                
-                fact_sheet_str = "\n".join([f"- {k}: {v}" for k, v in fact_sheet.items()])
-
-                # Get Legal Context
+                # Get relevant laws
                 legal_context, citations = self._get_legal_context(case_type_ar)
-
-                system_prompt = f"""أنت محامي صياغة قانونية محترف (The Associate). مهمتك هي صياغة المستندات القانونية بدقة متناهية بناءً على البيانات المقدمة ومواد النظام.
-
-قواعد صارمة للصياغة:
-1. **لا تستخدم مربعات نصية** مثل [اسم الشخص] أو [التاريخ]. إذا لم تكن المعلومة متوفرة، اترك فراغاً منقوطاً (............).
-2. **لا تستخدم placeholders** مثل [بالمليون ريال]. استخدم الأرقام الفعلية المذكورة في 'Fact Sheet' أدناه.
-3. **اللغة:** صياغة عربية قانونية رصينة فقط. يُمنع استخدام أي لغات أخرى (مثل الصينية أو الإنجليزية) داخل النص العربي.
-4. **الدقة:** لا تبتكر وقائع. استند فقط لما ورد في البيانات.
-
-حقائق القضية (Must use these values):
-{fact_sheet_str}"""
-
-                if legal_context:
-                    system_prompt += f"\n\n{legal_context}\n\nيجب عليك الاستشهاد بأرقام المواد المذكورة أعلاه في المسودة."
                 
-                prompt = f"""قم بصياغة لائحة دعوى قضائية من نوع '{case_type_ar}' بشكل احترافي.
-يجب أن تتبع الهيكل التالي بدقة وتملأ البيانات من 'Fact Sheet':
+                # Prompt for Summary and Basis
+                target_prompt = f"""لقد قمت بتحليل قضية '{case_type_ar}'. 
+بناءً على هذا السياق، قم بتوليد فقرتين فقط بشكل احترافي جداً:
+١. ملخص موجز للوقائع (Facts Summary).
+٢. الأسانيد النظامية المقترحة (Legal Basis) بناءً على الأنظمة السعودية.
 
-[الهيكل المطلوب]:
-١. الجهة: إلى محكمة (المحكمة العامة)
-٢. الأطراف:
-   - المدعي: ............
-   - المدعى عليه: ............
-٣. موضوع الدعوى: {case_type_ar}
-٤. وقائع الدعوى: (اكتب هنا تفاصيل الحادث والأضرار والخطأ)
-٥. الأسانيد النظامية: (اذكر مواد النظام السعودي ذات الصلة)
-٦. الطلبات:
-   - إلزام المدعى عليه بدفع مبلغ ({amount}) ريال سعودي.
-   - أي طلبات أخرى ذات صلة.
+قواعد صارمة: 
+- لا تذكر أسماء أشخاص أو أرقام هويات. 
+- لا تستخدم placeholders مثل [المبلغ].
+- اجعلها فقرة سردية رصينة."""
 
-الحقائق لاستخدامها:
-{fact_sheet_str}"""
+                system_prompt = f"أنت خبير صياغة قانونية. سياق الأنظمة:\n{legal_context}"
                 
-                generated_draft = self.llm.generate(prompt, system_prompt=system_prompt)
-                
-                # Clean the draft of common hallmarks of hallucination
-                generated_draft = self._clean_draft(generated_draft, fact_sheet)
-                
-                return {
-                    "text": f"[Draft] **مسودة لائحة دعوى (Generated by AI):**\n\n{generated_draft}",
-                    "intent": "draft_claim",
-                    "citations": citations, # Pass citations for explainability
-                    "metadata": {"is_draft": True, "draft_type": "claim"},
-                    "suggested_actions": [
-                        {"label": "🛡️ Draft Defense | كتابة مذكرة دفاع", "action": "draft_defense"},
-                        {"label": "💡 Recommendations | التوصيات", "action": "recommendations"}
-                    ]
-                }
+                ai_output = self.llm.generate(target_prompt, system_prompt=system_prompt)
+                ai_output = self._clean_draft(ai_output, {}) # Basic cleaning
+
+                # Split output (rudimentary splitting)
+                if "١." in ai_output and "٢." in ai_output:
+                    parts = ai_output.split("٢.")
+                    facts_summary = parts[0].replace("١.", "").strip()
+                    legal_basis = parts[1].strip()
+                else:
+                    facts_summary = ai_output[:len(ai_output)//2]
+                    legal_basis = ai_output[len(ai_output)//2:]
+
+                # Simple Translation for the AI parts
+                if HAS_TRANSLATOR:
+                    facts_summary_en = GoogleTranslator(source='auto', target='en').translate(facts_summary[:500])
+                    legal_basis_en = GoogleTranslator(source='auto', target='en').translate(legal_basis[:500])
+
             except Exception as e:
-                logger.error(f"LLM Draft Error: {e}")
-                # Fallback to template below
+                logger.error(f"Hybrid Draft AI Error: {e}")
+
+        # 2. Inject into Template
+        final_text = self.CLAIM_TEMPLATE.format(
+            court_name="المحكمة العامة (General Court)",
+            court_name_en="General Court",
+            case_type=case_type_ar,
+            case_type_en=case_type_en,
+            facts_summary=facts_summary,
+            legal_basis=legal_basis,
+            facts_summary_en=facts_summary_en,
+            legal_basis_en=legal_basis_en,
+            amount=amount
+        )
+
+        return {
+            "text": final_text,
+            "intent": "draft_claim",
+            "citations": citations,
+            "metadata": {"is_draft": True, "draft_type": "claim", "is_hybrid": True},
+            "suggested_actions": [
+                {"label": "🛡️ Draft Defense | كتابة مذكرة دفاع", "action": "draft_defense"},
+                {"label": "💡 Recommendations | التوصيات", "action": "recommendations"}
+            ]
+        }
         
         case_type_en = clf.get("name_en", "Unknown")
         
@@ -831,81 +907,80 @@ We inform your honor that... [Based on case details]
         }
 
     async def _handle_draft_defense(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Generate a defense memo draft template (or LLM if available)."""
+        """Generate a defense memo draft using Hybrid Template Injection."""
         clf = analysis.get("classification", {})
         case_type_ar = clf.get("name_ar", "غير محدد")
+        case_type_en = clf.get("name_en", "Not specified")
         
-        # Try LLM Generation
+        # Extract amount
+        amount = analysis.get("recommendation", {}).get("award_amount", "............")
+        
+        # 1. Targeted AI Generation (Summaries ONLY)
+        facts_summary = "............ (يرجى الرد على الوقائع هنا)"
+        legal_basis = "............ (يرجى ذكر الدفوع النظامية هنا)"
+        facts_summary_en = "............ (Please respond to facts here)"
+        legal_basis_en = "............ (Please cite defenses here)"
+        citations = []
+
         if self.llm:
             try:
-                # Fact Sheet extraction for strict grounding
-                clf = analysis.get("classification", {})
-                case_type_ar = clf.get("name_ar", "غير محدد")
-                
-                # Extract award/claim amount
-                amount = analysis.get("recommendation", {}).get("award_amount", "غير محدد")
-                
-                fact_sheet = {
-                    "نوع القضية": case_type_ar,
-                    "المبلغ": amount,
-                    "المحكمة المختصة": "المحكمة العامة (General Court)",
-                    "حالة القضية": "حكم صادر" if analysis.get("recommendation", {}).get("direction") == "decided_judgement" else "رد على دعوى"
-                }
-                
-                fact_sheet_str = "\n".join([f"- {k}: {v}" for k, v in fact_sheet.items()])
-
-                # Get Legal Context
+                # Get relevant laws
                 legal_context, citations = self._get_legal_context(case_type_ar)
-
-                system_prompt = f"""أنت محامي ردود قانونية خبير. مهمتك صياغة 'مذكرة دفاع' قوية ومحترفة.
+                
+                # Prompt for Summary and Basis
+                target_prompt = f"""بصفتك محامياً للرد، قم بصياغة قسمين فقط لمذكرة دفاع في قضية '{case_type_ar}':
+١. ملخص الرد الموضوعي (Substantive Response).
+٢. الدفوع النظامية والأسانيد (Legal Defenses).
 
 قواعد صارمة:
-1. **لا تستخدم placeholders** مثل [التاريخ] أو [المادة المبرمجة]. استخدم القيم من 'Fact Sheet' أو اترك فراغاً (............).
-2. **اللغة:** عربية قانونية فقط. لا صينية ولا إنجليزية.
-3. استخدم مواد النظام الواردة في السياق أدناه.
+- لا تبتكر أسماء أشخاص.
+- لا تبتكر أرقام هويات.
+- لا تكرر الرموز أو النقاط بشكل مفرط."""
 
-حقائق القضية (Must use):
-{fact_sheet_str}"""
+                system_prompt = f"أنت محامي خبير. الأنظمة ذات الصلة:\n{legal_context}"
+                
+                ai_output = self.llm.generate(target_prompt, system_prompt=system_prompt)
+                ai_output = self._clean_draft(ai_output, {})
 
-                if legal_context:
-                    system_prompt += f"\n\n{legal_context}\n\nيجب عليك الاستشهاد بأرقام المواد المذكورة أعلاه في المسودة."
-                
-                prompt = f"""قم بصياغة مذكرة دفاع (رد على دعوى) في قضية من نوع '{case_type_ar}' بشكل احترافي.
-يجب أن تتبع الهيكل التالي بدقة وتملأ البيانات من 'Fact Sheet':
+                # Split output
+                if "١." in ai_output and "٢." in ai_output:
+                    parts = ai_output.split("٢.")
+                    facts_summary = parts[0].replace("١.", "").strip()
+                    legal_basis = parts[1].strip()
+                else:
+                    facts_summary = ai_output[:len(ai_output)//2]
+                    legal_basis = ai_output[len(ai_output)//2:]
 
-[الهيكل المطلوب]:
-١. الجهة: إلى محكمة (المحكمة العامة)
-٢. الأطراف:
-   - المدعي: ............
-   - المدعى عليه: ............
-٣. الدفوع الشكلية: (مثل عدم اختصاص المحكمة أو تقادم الدعوى)
-٤. الدفوع الموضوعية: (فند الادعاءات بناءً على الوقائع)
-٥. الأسانيد الشرعية والنظامية: (اذكر المواد التي تدعم موقفك)
-٦. الخاتمة والطلبات:
-   - رد الدعوى لعدم الصحة.
-   - أي طلبات أخرى.
+                # Simple Translation
+                if HAS_TRANSLATOR:
+                    facts_summary_en = GoogleTranslator(source='auto', target='en').translate(facts_summary[:500])
+                    legal_basis_en = GoogleTranslator(source='auto', target='en').translate(legal_basis[:500])
 
-الحقائق لاستخدامها:
-{fact_sheet_str}"""
-                
-                generated_draft = self.llm.generate(prompt, system_prompt=system_prompt)
-                
-                # Clean the draft
-                generated_draft = self._clean_draft(generated_draft, fact_sheet)
-                
-                return {
-                    "text": f"[Draft] **مذكرة دفاع (Generated by AI):**\n\n{generated_draft}",
-                    "intent": "draft_defense",
-                    "citations": citations, # Pass citations for explainability
-                    "metadata": {"is_draft": True, "draft_type": "defense"},
-                    "suggested_actions": [
-                        {"label": "📝 Draft Claim | كتابة لائحة دعوى", "action": "draft_claim"},
-                        {"label": "💡 Recommendations | التوصيات", "action": "recommendations"}
-                    ]
-                }
             except Exception as e:
-                logger.error(f"LLM Draft Error: {e}")
-                # Fallback to template below
+                logger.error(f"Hybrid Defense AI Error: {e}")
+
+        # 2. Inject into Template
+        final_text = self.DEFENSE_TEMPLATE.format(
+            court_name="المحكمة العامة (General Court)",
+            court_name_en="General Court",
+            case_type=case_type_ar,
+            case_type_en=case_type_en,
+            facts_summary=facts_summary,
+            legal_basis=legal_basis,
+            facts_summary_en=facts_summary_en,
+            legal_basis_en=legal_basis_en
+        )
+
+        return {
+            "text": final_text,
+            "intent": "draft_defense",
+            "citations": citations,
+            "metadata": {"is_draft": True, "draft_type": "defense", "is_hybrid": True},
+            "suggested_actions": [
+                {"label": "📝 Draft Claim | كتابة لائحة دعوى", "action": "draft_claim"},
+                {"label": "💡 Recommendations | التوصيات", "action": "recommendations"}
+            ]
+        }
 
         case_type_en = clf.get("name_en", "Unknown")
         
@@ -951,6 +1026,16 @@ Dismiss the claim and compel plaintiff to pay costs.""",
         if not text:
             return ""
             
+        # 0. HARD REJECT Hallucinated Identities & Absurd Loops
+        hallucinated_names = ["أحمد محمد صالح بن زيد", "بن زيد", "Ahmed Muhammad Saleh"]
+        for name in hallucinated_names:
+            if name in text:
+                text = text.replace(name, "............")
+
+        # Reject absurd numeric strings (loops of zeros)
+        text = re.sub(r'0{6,}', '............', text)
+        text = re.sub(r'_{8,}', '............', text)
+
         # 1. Remove Chinese characters and other non-Arabic/English hallucinations
         text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\u2e80-\u2eff\u3000-\u303f\uff00-\uffef]+', '', text)
         
@@ -969,19 +1054,20 @@ Dismiss the claim and compel plaintiff to pay costs.""",
         placeholders = [
             "[اسم المدعي]", "[اسم المدعى عليه]", "[اسم الشخص]", 
             "[تاريخ]", "[تاريخ الدعوى]", "[التاريخ]",
-            "[الجهة المختصة]", "[العدد الزمني]", "[الاسم]", "[العنوان]"
+            "[الجهة المختصة]", "[العدد الزمني]", "[الاسم]", "[العنوان]",
+            "(name of plaintiff)", "(name of defendant)"
         ]
         for p in placeholders:
             text = text.replace(p, "............")
         
-        # 5. Clean excessive repetitive underscores
-        text = re.sub(r'_{5,}', '............', text)
-        
-        # 6. Remove repetitive lines (common in hallucinations)
+        # 5. Clean excessive repetitive lines (common in loops)
         lines = text.split('\n')
         cleaned_lines = []
         for line in lines:
             if line.strip() and (not cleaned_lines or line.strip() != cleaned_lines[-1].strip()):
+                # Also check for repeating char strings within the line
+                if len(set(line.strip())) < 5 and len(line.strip()) > 30:
+                    continue # Reject lines that are just repeated chars
                 cleaned_lines.append(line)
         text = '\n'.join(cleaned_lines)
             
