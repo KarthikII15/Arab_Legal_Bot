@@ -1,6 +1,7 @@
 import os
 import logging
 import warnings
+import json
 from datetime import datetime
 
 # --- Log Cleaning Setup ---
@@ -151,7 +152,7 @@ async def summarize_case(request: SummarizeRequest):
     logger.info(f"Summarization request (Length: {len(request.text)} chars)")
     
     if not summarizer_engine:
-         raise HTTPException(status_code=503, detail="Summarizer engine not initialized")
+        raise HTTPException(status_code=503, detail="Summarizer engine not initialized")
          
     try:
         summary_result = summarizer_engine.summarize(request.text)
@@ -302,12 +303,12 @@ async def upload_document(file: UploadFile = File(...)):
     
     # Check for legacy .doc files
     if ext == ".doc":
-         logger.warning(f"Rejected .doc file: {file.filename}")
-         raise HTTPException(status_code=400, detail="Legacy word files (.doc) are not supported. Please save as .docx and try again.")
+        logger.warning(f"Rejected .doc file: {file.filename}")
+        raise HTTPException(status_code=400, detail="Legacy word files (.doc) are not supported. Please save as .docx and try again.")
 
     if ext not in [".pdf", ".docx", ".txt", ".json"] and file.content_type not in allowed_types:
-          logger.warning(f"Unsupported file type: ext='{ext}', content_type='{file.content_type}'")
-          raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: PDF, DOCX, TXT, JSON. Got: {file.content_type} (ext: {ext})")
+        logger.warning(f"Unsupported file type: ext='{ext}', content_type='{file.content_type}'")
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: PDF, DOCX, TXT, JSON. Got: {file.content_type} (ext: {ext})")
     
     # Max file size: 10MB
     MAX_SIZE = 10 * 1024 * 1024
@@ -321,8 +322,8 @@ async def upload_document(file: UploadFile = File(...)):
         text = extract_text(file.filename, content)
         
         if not text.strip():
-             logger.warning(f"Empty text extracted from {file.filename}")
-             raise HTTPException(status_code=400, detail="Could not extract text from file (it might be a scanned image without OCR) or file is empty.")
+            logger.warning(f"Empty text extracted from {file.filename}")
+            raise HTTPException(status_code=400, detail="Could not extract text from file (it might be a scanned image without OCR) or file is empty.")
              
         logger.info(f"Successfully extracted {len(text)} chars from {file.filename}")
         return {"filename": file.filename, "text": text}

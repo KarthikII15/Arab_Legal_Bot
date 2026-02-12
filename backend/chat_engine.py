@@ -94,6 +94,14 @@ class ChatEngine:
     def set_analyzer(self, analyzer_func):
         """Inject the full analysis pipeline function."""
         self.analyzer = analyzer_func
+    
+    def _clean_draft(self, text: str, facts: Dict[str, Any]) -> str:
+        """Substitute template placeholders with actual facts."""
+        cleaned = text
+        for key, value in facts.items():
+            placeholder = "{" + key + "}"
+            cleaned = cleaned.replace(placeholder, str(value))
+        return cleaned
         
     def _initialize_intents(self) -> Dict[str, List[str]]:
         """Define intent detection keywords in Arabic and English."""
