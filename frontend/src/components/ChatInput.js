@@ -139,7 +139,7 @@ export function ChatInput({
                   {cmd.name}
                 </div>
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
-                  {cmd.label}
+                  {cmd.label} | {cmd.name.substring(1)}
                 </div>
               </div>
             </div>
@@ -154,7 +154,7 @@ export function ChatInput({
           className="chat-input-attach"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
-          title="إرفاق ملف"
+          title="إرفاق ملف | Attach File"
         >
           <Paperclip size={20} />
         </button>
@@ -176,7 +176,7 @@ export function ChatInput({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder="اكتب سؤالك هنا... (Ctrl+Enter أو Cmd+Enter للإرسال)"
+          placeholder="اكتب سؤالك هنا... (Ctrl+Enter للإرسال) | Ask your question... (Ctrl+Enter to send)"
           className="chat-message-input"
         />
 
@@ -185,7 +185,7 @@ export function ChatInput({
           onClick={handleSend}
           disabled={disabled || !text.trim()}
           className={`chat-input-send ${disabled || !text.trim() ? 'disabled' : ''}`}
-          title="إرسال (Ctrl+Enter)"
+          title="إرسال | Send (Ctrl+Enter)"
         >
           <Send size={20} />
         </button>
@@ -194,7 +194,7 @@ export function ChatInput({
       {/* Character Counter */}
       {maxChars && (
         <div className="chat-char-counter" style={{ color: charColor }}>
-          {charCount}/{maxChars} أحرف
+          {charCount}/{maxChars} أحرف | characters
         </div>
       )}
     </div>

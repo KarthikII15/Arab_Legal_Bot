@@ -81,7 +81,12 @@ export function RelatedCaseModal({
                             border: '1px solid var(--color-gray-300)',
                             background: 'transparent',
                             cursor: 'pointer'
-                        }}>إغلاق (Close)</button>
+                        }}>
+                            <div className="btn-text-stack">
+                                <span>إغلاق</span>
+                                <span className="en-tiny">Close</span>
+                            </div>
+                        </button>
 
                         <button className="btn-primary" onClick={() => window.open(`#case-${caseData.id}`, '_blank')} style={{
                             display: 'flex',
@@ -95,7 +100,10 @@ export function RelatedCaseModal({
                             cursor: 'pointer'
                         }}>
                             <ExternalLink size={16} />
-                            عرض المصدر الكامل
+                            <div className="btn-text-stack">
+                                <span>عرض المصدر الكامل</span>
+                                <span className="en-tiny">View Full Source</span>
+                            </div>
                         </button>
                     </div>
                 </div>

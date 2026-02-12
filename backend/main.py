@@ -22,7 +22,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from models import (
-    Case, SimilarityRequest, SimilarCaseResult,
+    Case, SimilarityRequest, SimilarCaseResult, RelatedCase,
     SummarizeRequest, SummarizeResponse,
     AnalyzeRequest, AnalyzeResponse, CaseClassification,
     LegalPrinciple, TrendStats, Recommendation, SubType, SupportingPrinciple,
@@ -191,11 +191,24 @@ async def execute_full_analysis(text: str, top_k: int = 5) -> AnalyzeResponse:
     
     # Step 3: Find similar cases
     logger.info("Step 3/5: Finding similar cases...")
+    import math
     similar_results = similarity_engine.search(text, top_k=top_k)
-    similar_cases = [case for case, distance in similar_results]
+    
+    related_cases_list = []
+    for case, distance in similar_results:
+        # Gaussian similarity: exp(-d²/2σ²) with σ=15 tuned for SBERT L2 distances
+        similarity = math.exp(-(distance ** 2) / (2 * 15 ** 2))
+        percentage = round(similarity * 100, 2)
+        
+        related_cases_list.append(RelatedCase(
+            case=case,
+            similarity_score=percentage,
+            preview=case.facts[:200] + "..."
+        ))
     
     # Step 4: Analyze trends
     logger.info("Step 4/5: Analyzing trends...")
+    similar_cases = [rc.case for rc in related_cases_list]
     trends_raw = analyze_trends(similar_cases)
     trends = TrendStats(**trends_raw)
     
@@ -224,7 +237,8 @@ async def execute_full_analysis(text: str, top_k: int = 5) -> AnalyzeResponse:
         trends=trends,
         recommendation=recommendation,
         entities=entities,
-        text=text
+        text=text,
+        related_cases=related_cases_list
     )
 
 @app.post("/analyze", response_model=AnalyzeResponse)
@@ -462,6 +476,7 @@ async def chat(request: ChatRequest):
             assistant_translation=response.get("assistant_translation"),
             citations=response.get("citations", []),
             metadata=response.get("metadata", {}),
+            analysis_data=response.get("analysis_data"),
             error=response.get("error")
         )
         

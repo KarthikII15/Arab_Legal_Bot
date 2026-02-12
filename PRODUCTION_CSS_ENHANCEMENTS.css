@@ -214,16 +214,19 @@ input, textarea, button, select {
 
 .app-header {
   grid-area: header;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  background: #f5f8fc;
+  /* Light blue-gray background */
   box-shadow: var(--shadow-lg);
   position: relative;
   z-index: var(--z-fixed);
+  border-bottom: 1px solid #e0e8f0;
 }
 
 .app-sidebar {
   grid-area: sidebar;
-  background-color: var(--color-bg-secondary);
-  border-inline-end: 1px solid var(--color-gray-200);
+  background-color: #f5f8fc;
+  /* Light blue-gray background */
+  border-inline-end: 1px solid #e0e8f0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -891,7 +894,7 @@ textarea.message-input::placeholder {
 
 .sidebar-new-chat {
   width: 100%;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   background: var(--color-primary);
   color: white;
   border: none;

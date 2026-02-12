@@ -13,6 +13,7 @@ import { ThinkingIndicator } from './components/StateIndicators';
 import { SettingsModal } from './components/SettingsModal';
 import { RelatedCaseModal } from './components/RelatedCaseModal';
 import { jsPDF } from 'jspdf';
+import { PanelLeft, PanelRight } from 'lucide-react';
 
 function App() {
   // Chat State
@@ -21,6 +22,8 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [healthStatus, setHealthStatus] = useState("checking");
   const [analysis, setAnalysis] = useState(null);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [showTools, setShowTools] = useState(true);
 
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
@@ -52,8 +55,14 @@ function App() {
     if (!greetingSent.current && messages.length === 0) {
       greetingSent.current = true;
       addAssistantMessage(
-        "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n• 📊 تحليل القضايا\n• ⚖️ تصنيف القضايا\n• 💡 التوصيات القانونية\n• 🔍 البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n• Case Analysis • Classification • Legal Recommendations • Precedent Search",
-        "greeting"
+        "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n- 📊 تحليل القضايا\n- ⚖️ تصنيف القضايا\n- 💡 التوصيات القانونية\n- 🔍 البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
+        "greeting",
+        [],
+        null,
+        [
+          { label: "Upload Case | رفع قضية", action: "upload" },
+          { label: "Case Summary | ملخص القضية", action: "case_summary" }
+        ]
       );
     }
 
@@ -120,8 +129,14 @@ function App() {
     // Send greeting again after clear
     setTimeout(() => {
       addAssistantMessage(
-        "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n• 📊 تحليل القضايا\n• ⚖️ تصنيف القضايا\n• 💡 التوصيات القانونية\n• 🔍 البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n• Case Analysis • Classification • Legal Recommendations • Precedent Search",
-        "greeting"
+        "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n- 📊 تحليل القضايا\n- ⚖️ تصنيف القضايا\n- 💡 التوصيات القانونية\n- 🔍 البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
+        "greeting",
+        [],
+        null,
+        [
+          { label: "Upload Case | رفع قضية", action: "upload" },
+          { label: "Case Summary | ملخص القضية", action: "case_summary" }
+        ]
       );
     }, 500);
 
@@ -140,7 +155,7 @@ function App() {
     return newMessage.id;
   };
 
-  const addAssistantMessage = (text, intent = '', citations = [], translation = null) => {
+  const addAssistantMessage = (text, intent = '', citations = [], translation = null, suggestedActions = []) => {
     const newMessage = {
       id: Date.now(),
       role: 'assistant',
@@ -148,6 +163,7 @@ function App() {
       translation: translation,
       intent: intent,
       citations: citations,
+      suggested_actions: suggestedActions,
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, newMessage]);
@@ -167,7 +183,12 @@ function App() {
       });
       setHealthStatus("connected");
 
-      const { text, citations, user_translation, assistant_translation } = response.data;
+      const { text, citations, user_translation, assistant_translation, suggested_actions, intent: respIntent, analysis_data: respAnalysis } = response.data;
+
+      // Update analysis context if backend provides an updated one (auto-analysis)
+      if (respAnalysis) {
+        setAnalysis(respAnalysis);
+      }
 
       // Update user message with translation if available
       if (user_translation) {
@@ -176,7 +197,7 @@ function App() {
         ));
       }
 
-      addAssistantMessage(text, '', citations || [], assistant_translation);
+      addAssistantMessage(text, respIntent || '', citations || [], assistant_translation, suggested_actions || []);
 
       // Add to conversations if new and no file was uploaded
       if (!currentConversationId) {
@@ -206,7 +227,13 @@ function App() {
       console.error("Chat error:", error);
       addAssistantMessage(
         "عذراً، حدث خطأ في معالجة طلبك.\n\nSorry, an error occurred processing your request.",
-        "error"
+        "error",
+        [],
+        null,
+        [
+          { label: "Try Again | حاول مرة أخرى", action: "retry" },
+          { label: "Upload Case | رفع قضية", action: "upload" }
+        ]
       );
     } finally {
       setLoading(false);
@@ -277,8 +304,14 @@ function App() {
     greetingSent.current = false;
     // Trigger greeting again
     addAssistantMessage(
-      "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n• 📊 تحليل القضايا\n• ⚖️ تصنيف القضايا\n• 💡 التوصيات القانونية\n• 🔍 البحث في السوابق",
-      "greeting"
+      "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n- 📊 تحليل القضايا\n- ⚖️ تصنيف القضايا\n- 💡 التوصيات القانونية\n- 🔍 البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
+      "greeting",
+      [],
+      null,
+      [
+        { label: "Upload Case | رفع قضية", action: "upload" },
+        { label: "Ask Question | اسأل سؤال", action: "ask_question" }
+      ]
     );
   };
 
@@ -331,6 +364,38 @@ function App() {
     }
   };
 
+  const handleSuggestedAction = (action, label) => {
+    console.log("Suggested action clicked:", action, label);
+
+    switch (action) {
+      case 'upload':
+        // Trigger file input or show prompt
+        document.querySelector('input[type="file"]')?.click();
+        break;
+      case 'paste_text':
+      case 'learn_more':
+      case 'full_analysis':
+      case 'similar_cases':
+      case 'recommendations':
+      case 'draft_claim':
+      case 'draft_defense':
+      case 'draft_appeal':
+      case 'draft_enforcement':
+      case 'legal_principles':
+      case 'trends':
+      case 'case_summary':
+      case 'outcome':
+      case 'compensation':
+      case 'entities':
+        // Send the action string directly to trigger exact intent matching
+        sendChatMessage(action);
+        break;
+      default:
+        sendChatMessage(label);
+        break;
+    }
+  };
+
   const handleMessageAction = (msgId, action) => {
     const message = messages.find(m => m.id === msgId);
     if (!message) return;
@@ -348,7 +413,7 @@ function App() {
   };
 
   return (
-    <Layout>
+    <Layout showSidebar={showSidebar} showTools={showTools}>
       {/* Header */}
       <Header
         healthStatus={healthStatus}
@@ -363,10 +428,28 @@ function App() {
         onSelect={handleSelectConversation}
         onDelete={handleDeleteConversation}
         onArchive={handleArchiveConversation}
+        onClearHistory={handleClearData}
       />
 
       {/* Main Content Area */}
       <main className="app-main">
+        {/* Edge Toggle Buttons */}
+        <button
+          className={`edge-toggle sidebar-trigger ${!showSidebar ? 'collapsed' : ''}`}
+          onClick={() => setShowSidebar(!showSidebar)}
+          title={showSidebar ? "إخفاء السجل" : "عرض السجل"}
+        >
+          <PanelRight size={18} />
+        </button>
+
+        <button
+          className={`edge-toggle tools-trigger ${!showTools ? 'collapsed' : ''}`}
+          onClick={() => setShowTools(!showTools)}
+          title={showTools ? "إخفاء الأدوات" : "عرض الأدوات"}
+        >
+          <PanelLeft size={18} />
+        </button>
+
         <div className="chat-messages-container">
           {messages.length === 0 ? (
             <div className="chat-empty-state">
@@ -374,7 +457,9 @@ function App() {
               <h2 className="chat-empty-title">
                 أهلاً بك في المساعد القانوني
               </h2>
+              <p className="chat-empty-subtitle-en en-large">Welcome to Legal AI Assistant</p>
               <p className="chat-empty-subtitle">ابدأ برفع ملف قانوني أو اطرح سؤالاً</p>
+              <p className="chat-empty-subtitle-en">Upload a document or ask a question to begin</p>
             </div>
           ) : (
             messages.map((msg) => (
@@ -384,6 +469,7 @@ function App() {
                 onCopy={() => handleMessageAction(msg.id, 'copy')}
                 onRegenerate={() => handleMessageAction(msg.id, 'regenerate')}
                 onFeedback={(id, type) => console.log('Feedback:', id, type)}
+                onActionClick={handleSuggestedAction}
                 showActions={msg.role === 'assistant'}
               />
             ))
@@ -393,7 +479,10 @@ function App() {
           {loading && (
             <div className="chat-loading-wrapper">
               <div className="chat-loading-icon">⚖️</div>
-              <ThinkingIndicator message="جاري معالجة طلبك..." />
+              <div className="thinking-text">
+                <ThinkingIndicator message="جاري معالجة طلبك..." />
+                <div className="en-tiny">Processing your request...</div>
+              </div>
             </div>
           )}
 
@@ -496,23 +585,35 @@ function App() {
           navigator.clipboard.writeText(content);
         }}
         onViewCase={(caseId) => {
-          // Find the case in relatedCases (mock logic for now as we don't have the full list in state always)
-          // Ideally we should have a 'relatedCases' state.
-          // For this MVP, we will try to find it in 'analysis?.related_cases' or create a dummy one if clicked from UI mock
-          const caseItem = analysis?.related_cases?.find(c => c.id === caseId) || {
-            id: caseId,
-            title: 'قضية تجارية رقم ٤٥٣ (Commercial Case #453)',
-            type: 'تجاري (Commercial)',
-            year: '2024',
-            similarity: 0.85,
-            abstract: 'تتعلق هذه القضية بنزاع حول عقود التوريد وتأخير التسليم، حيث حكمت المحكمة بالتعويض عن الضرر الفعلي.',
-            principles: [
-              'العقد شريعة المتعاقدين',
-              'الضرر يجب أن يكون مباشراً ومحققاً',
-              'القوة القاهرة تعفي من المسؤولية'
-            ]
-          };
-          setViewingCase(caseItem);
+          const rawCase = analysis?.related_cases?.find(rc => (rc.case?.case_id === caseId || rc.id === caseId));
+
+          if (rawCase && rawCase.case) {
+            setViewingCase({
+              id: rawCase.case.case_id,
+              title: rawCase.case.case_id,
+              type: rawCase.case.court,
+              year: '2024',
+              similarity: rawCase.similarity_score / 100,
+              preview: rawCase.preview || rawCase.case.facts.substring(0, 300) + '...',
+              principles: [rawCase.case.legal_reasoning.substring(0, 300) + "..."]
+            });
+          } else if (rawCase) {
+            setViewingCase(rawCase);
+          } else {
+            setViewingCase({
+              id: caseId,
+              title: 'قضية تجارية رقم ٤٥٣ (Commercial Case #453)',
+              type: 'تجاري (Commercial)',
+              year: '2024',
+              similarity: 0.85,
+              abstract: 'تتعلق هذه القضية بنزاع حول عقود التوريد وتأخير التسليم، حيث حكمت المحكمة بالتعويض عن الضرر الفعلي.',
+              principles: [
+                'العقد شريعة المتعاقدين',
+                'الضرر يجب أن يكون مباشراً ومحققاً',
+                'القوة القاهرة تعفي من المسؤولية'
+              ]
+            });
+          }
         }}
       />
 

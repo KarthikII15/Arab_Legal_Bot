@@ -49,7 +49,7 @@ export const useChatEngine = () => {
             role: 'assistant',
             content: text,
             intent: intent,
-            suggestedActions: suggestedActions,
+            suggested_actions: suggestedActions,
             timestamp: new Date().toISOString()
         };
         setMessages(prev => [...prev, newMessage]);
@@ -96,7 +96,10 @@ export const useChatEngine = () => {
             addAssistantMessage(
                 `خطأ في تحليل النص: ${error.response?.data?.detail || error.message}\n\nText analysis error: ${error.response?.data?.detail || error.message}`,
                 "error",
-                []
+                [
+                    { label: "Try Again | حاول مرة أخرى", action: "retry" },
+                    { label: "Upload File | رفع ملف", action: "upload" }
+                ]
             );
         } finally {
             setLoading(false);
@@ -151,7 +154,10 @@ export const useChatEngine = () => {
             addAssistantMessage(
                 "عذراً، حدث خطأ في معالجة طلبك.\nSorry, an error occurred.",
                 "error",
-                []
+                [
+                    { label: "Try Again | حاول مرة أخرى", action: "retry" },
+                    { label: "Upload Case | رفع قضية", action: "upload" }
+                ]
             );
         } finally {
             setLoading(false);
@@ -197,7 +203,10 @@ export const useChatEngine = () => {
             addAssistantMessage(
                 `خطأ في رفع الملف: ${error.response?.data?.detail || error.message}`,
                 "error",
-                []
+                [
+                    { label: "Try Again | حاول مرة أخرى", action: "retry" },
+                    { label: "Upload Different File | رفع ملف آخر", action: "upload" }
+                ]
             );
         } finally {
             setLoading(false);

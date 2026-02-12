@@ -38,7 +38,10 @@ export function SettingsModal({
                     <section className="settings-section">
                         <h3>المظهر | Appearance</h3>
                         <div className="settings-row">
-                            <span>الوضع الليلي / النهاري</span>
+                            <div className="label-stack">
+                                <span>الوضع الليلي / النهاري</span>
+                                <span className="en-tiny">Toggle Light / Dark Mode</span>
+                            </div>
                             <button
                                 className="btn-secondary theme-toggle-btn"
                                 onClick={onToggleTheme}
@@ -46,12 +49,18 @@ export function SettingsModal({
                                 {theme === 'light' ? (
                                     <>
                                         <Moon size={18} />
-                                        <span>الوضع الليلي (Dark)</span>
+                                        <div className="btn-text-stack">
+                                            <span>الوضع الليلي</span>
+                                            <span className="en-tiny">Dark Mode</span>
+                                        </div>
                                     </>
                                 ) : (
                                     <>
                                         <Sun size={18} />
-                                        <span>الوضع النهاري (Light)</span>
+                                        <div className="btn-text-stack">
+                                            <span>الوضع النهاري</span>
+                                            <span className="en-tiny">Light Mode</span>
+                                        </div>
                                     </>
                                 )}
                             </button>
@@ -71,7 +80,10 @@ export function SettingsModal({
                                     <span style={{ fontSize: size.value === 'small' ? '0.875rem' : size.value === 'medium' ? '1rem' : size.value === 'large' ? '1.125rem' : '1.25rem' }}>
                                         A
                                     </span>
-                                    <span>{size.label}</span>
+                                    <div className="btn-text-stack">
+                                        <span>{size.label}</span>
+                                        <span className="en-tiny">{size.labelEn}</span>
+                                    </div>
                                 </button>
                             ))}
                         </div>
@@ -81,7 +93,10 @@ export function SettingsModal({
                     <section className="settings-section destructive">
                         <h3>البيانات | Data</h3>
                         <div className="settings-row">
-                            <span>مسح جميع البيانات والمحادثات</span>
+                            <div className="label-stack">
+                                <span>مسح جميع البيانات والمحادثات</span>
+                                <span className="en-tiny">Clear all data and conversations</span>
+                            </div>
                             <button
                                 className="btn-danger"
                                 onClick={() => {
@@ -91,7 +106,10 @@ export function SettingsModal({
                                 }}
                             >
                                 <Trash2 size={18} />
-                                <span>مسح البيانات (Clear Data)</span>
+                                <div className="btn-text-stack">
+                                    <span>مسح البيانات</span>
+                                    <span className="en-tiny">Clear All Data</span>
+                                </div>
                             </button>
                         </div>
                     </section>

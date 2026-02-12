@@ -106,12 +106,12 @@ class ChatEngine:
     def _initialize_intents(self) -> Dict[str, List[str]]:
         """Define intent detection keywords in Arabic and English."""
         return {
-            "case_summary": ["ملخص", "summary", "ملخص القضية", "summarize", "اختصار", "case_summary", "show_details"],
+            "case_summary": ["ملخص", "summary", "ملخص القضية", "summarize", "اختصار", "case_summary", "show_details", "summary", "summaries"],
             "case_type": ["النوع", "type", "classification", "التصنيف", "نوع القضية"],
             "similar_cases": ["حالات مشابهة", "similar", "precedent", "similar cases", "قضايا شبيهة", "قضايا مشابهة", "مشابهة", "search_similar"],
             "legal_principles": ["المبادئ", "principles", "قواعد قانونية", "legal_principles"],
             "trends": ["الاتجاهات", "trends", "statistics", "إحصائيات", "معدلات"],
-            "recommendation": ["توصية", "advice", "رأي", "اقتراح", "recommendations"],
+            "recommendation": ["توصية", "advice", "رأي", "اقتراح", "recommendations", "recommendation"],
             "full_analysis": ["تحليل", "analyze", "analysis", "تحليل شامل", "اشرح", "full_analysis"],
             "draft": ["مسودة", "draft", "نماذج"],
             "draft_claim": ["لائحة دعوى", "plaintiff claim", "صحيفة دعوى", "claim draft", "تقديم دعوى", "plaintiff_claim"],
@@ -151,6 +151,24 @@ class ChatEngine:
             
         return context_str, citations
     
+    def _format_case_citations(self, cases: List[Dict]) -> List[Dict[str, Any]]:
+        """Format a list of case objects into standard citations."""
+        citations = []
+        if not cases:
+            return []
+            
+        for case in cases[:3]: # Limit to top 3 for brevity
+            citations.append({
+                "source": case.get("case_id", "Precedent"),
+                "text": case.get("facts", "")[:300] + "...",
+                "article": f"المحكمة: {case.get('court', 'N/A')}",
+                "metadata": {
+                    "judgment": case.get("judgment", ""),
+                    "reasoning": case.get("legal_reasoning", "")
+                }
+            })
+        return citations
+
     def _is_likely_case(self, text: str) -> bool:
         """Detect if text is likely a legal case description."""
         if len(text) < 100:
@@ -216,9 +234,8 @@ class ChatEngine:
     ) -> Dict[str, Any]:
         """Process a user message and generate an appropriate response."""
         try:
-            # Sync analysis data from frontend if provided (even if None)
-            if analysis_data is not None or "analysis_data" in locals():
-                 # We only reset if we aren't in the middle of an auto-analysis sequence
+            # Sync analysis data from frontend ONLY if provided (not None)
+            if analysis_data is not None:
                  self.context.set_analysis(analysis_data, case_text)
             
             self.context.add_message("user", user_message)
@@ -254,6 +271,9 @@ class ChatEngine:
                     logger.error(f"Auto-analysis failed: {e}")
 
             response = await self._generate_response(user_message, intent)
+            
+            # Include the current analysis in the response so the frontend stays synced
+            response["analysis_data"] = self.context.analysis_data
             
             assistant_text = response.get("text", "")
             if HAS_TRANSLATOR and assistant_text and any('\u0600' <= char <= '\u06FF' for char in assistant_text):
@@ -411,7 +431,8 @@ How can I help you today?""",
                 {"label": "Full Details | عرض التفاصيل الكاملة", "action": "full_analysis"},
                 {"label": "Similar Cases | قضايا مشابهة", "action": "similar_cases"},
                 {"label": "Recommendations | التوصيات", "action": "recommendations"}
-            ]
+            ],
+            "citations": self._format_case_citations(analysis.get("related_cases", []))
         }
     
     async def _handle_case_type(self, query: str, analysis: Dict) -> Dict[str, Any]:
@@ -458,8 +479,8 @@ Case Classification:
         case_status_ar = f"نسبة فوز المدعي: {win_rate}%" if not is_judgement else "تم الحكم فيها"
         case_status_en = f"Plaintiff Win Rate: {win_rate}%" if not is_judgement else "Already Judged"
 
-        ar_text = f"🔍 نتائج البحث عن قضايا مشابهة:\n\nلقد وجدنا قضايا مرتبطة بنوع: **{case_type_ar}**. (إجمالي العينة: {sample_size} قضايا)\n\n**الإحصائيات المستخلصة من السوابق:**\n• حالة القضية: {case_status_ar}\n• متوسط التعويض: {ar_comp}"
-        en_text = f"🔍 **Similar Case Results:**\n\nWe found precedents related to: **{case_type_en}**. (Total sample: {sample_size} cases)\n\n**Extracted Trend Data:**\n• Case Status: {case_status_en}\n• Average Compensation: {en_comp}"
+        ar_text = f"🔍 نتائج البحث عن قضايا مشابهة:\n\nلقد وجدنا قضايا مرتبطة بنوع: **{case_type_ar}**. (إجمالي العينة: {sample_size} قضايا)\n\n**الإحصائيات المستخلصة من السوابق:**\n• حالة القضية: {case_status_ar}\n• متوسط التعويض: {ar_comp}\n\n**السوابق والقرارات القضائية (مرفقة أدناه):**\nتم اختيار أهم السوابق القضائية المشابهة لحالتك والمبنية على مبادئ محاكمنا."
+        en_text = f"🔍 **Similar Case Results:**\n\nWe found precedents related to: **{case_type_en}**. (Total sample: {sample_size} cases)\n\n**Extracted Trend Data:**\n• Case Status: {case_status_en}\n• Average Compensation: {en_comp}\n\n**Detailed Precedents (Listed Below):**\nWe have identified the most relevant historical decisions matching your case context."
 
         return {
             "text": f"{ar_text}\n\n---\n\n{en_text}",
@@ -467,7 +488,8 @@ Case Classification:
             "suggested_actions": [
                 {"label": "Full Analysis | تحليل شامل", "action": "full_analysis"},
                 {"label": "Recommendations | التوصيات", "action": "recommendations"}
-            ]
+            ],
+            "citations": self._format_case_citations(analysis.get("related_cases", []))
         }
     
     async def _handle_legal_principles(self, query: str, analysis: Dict) -> Dict[str, Any]:
@@ -498,7 +520,8 @@ Case Classification:
             "intent": "trends",
             "suggested_actions": [
                 {"label": "Recommendations | التوصيات", "action": "recommendations"}
-            ]
+            ],
+            "citations": self._format_case_citations(analysis.get("related_cases", []))
         }
     
     async def _handle_recommendation(self, query: str, analysis: Dict) -> Dict[str, Any]:
@@ -584,7 +607,8 @@ Case Classification:
         return {
             "text": f"{ar_text}\n\n---\n\n{en_text}",
             "intent": "full_analysis",
-            "suggested_actions": suggested_actions
+            "suggested_actions": suggested_actions,
+            "citations": self._format_case_citations(analysis.get("related_cases", []))
         }
     
     # --- STATIC LEGAL TEMPLATES ---
@@ -829,27 +853,59 @@ STRICT INSTRUCTIONS:
     async def _handle_outcome(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Respond about case outcome probability."""
         win_rate = analysis.get("trends", {}).get("plaintiff_win_rate", 0)
-        return {"text": f"نسبة فوز المدعي التقريبية: {win_rate}%", "intent": "outcome"}
+        return {
+            "text": f"نسبة فوز المدعي التقريبية: {win_rate}%\nApproximation of Plaintiff win rate: {win_rate}%", 
+            "intent": "outcome",
+            "suggested_actions": [
+                {"label": "Detailed Recommendations | توصيات مفصلة", "action": "recommendations"},
+                {"label": "Similar Cases | قضايا مشابهة", "action": "similar_cases"}
+            ]
+        }
 
     async def _handle_compensation(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Respond about compensation information."""
         trends = analysis.get("trends", {})
-        return {"text": f"المعدل التاريخي للتعويضات: {trends.get('average_compensation', 0)} ر.س", "intent": "compensation"}
+        comp = trends.get('average_compensation', 0)
+        return {
+            "text": f"المعدل التاريخي للتعويضات: {comp} ر.س\nHistorical average compensation: {comp} SAR", 
+            "intent": "compensation",
+            "suggested_actions": [
+                {"label": "Outcome Probability | احتمالية النتيجة", "action": "outcome"},
+                {"label": "Full Analysis | تحليل شامل", "action": "full_analysis"}
+            ]
+        }
 
     async def _handle_entities(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Respond about extracted entities."""
         entities = analysis.get("entities", {})
         entities_list = "\n".join([f"• {e}: {v}" for e, v in entities.items()])
-        return {"text": f"الأطراف المكتشفة:\n{entities_list}", "intent": "entities"}
+        return {
+            "text": f"الأطراف المكتشفة:\n{entities_list}\n\nDetected Entities:\n{entities_list}", 
+            "intent": "entities",
+            "suggested_actions": [
+                {"label": "Case Summary | ملخص القضية", "action": "case_summary"},
+                {"label": "Legal Principles | المبادئ القانونية", "action": "legal_principles"}
+            ]
+        }
 
     async def _handle_general_inquiry(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Handle general inquiries."""
+        suggested = [
+            {"label": "Case Summary | ملخص القضية", "action": "case_summary"},
+            {"label": "Legal Recommendations | توصيات قانونية", "action": "recommendations"}
+        ] if analysis else [
+            {"label": "Analyze Case | تحليل قضية", "action": "upload"},
+            {"label": "Search Precedents | بحث السوابق", "action": "similar_cases"}
+        ]
+        
         if self.llm and analysis:
             try:
                 res = self.llm.generate(f"بيانات: {json.dumps(analysis, ensure_ascii=False)}\nسؤال: {query}", system_prompt="أنت مساعد قانوني.")
-                return {"text": res, "intent": "general_inquiry"}
+                return {"text": res, "intent": "general_inquiry", "suggested_actions": suggested}
             except: pass
-        return {"text": "أنا هنا لمساعدتك في تحليل القضايا القانونية السعودية.", "intent": "general_inquiry"}
+        
+        text = "أنا هنا لمساعدتك في تحليل القضايا القانونية السعودية.\nI am here to help you analyze Saudi legal cases."
+        return {"text": text, "intent": "general_inquiry", "suggested_actions": suggested}
 
     def get_conversation_history(self) -> List[Dict]:
         return self.context.get_last_n_messages(20)

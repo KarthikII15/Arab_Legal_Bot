@@ -9,7 +9,7 @@ import React from 'react';
  */
 export function Layout({ children, showTools = true, showSidebar = true }) {
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${!showSidebar ? 'sidebar-hidden' : ''} ${!showTools ? 'tools-hidden' : ''}`}>
       {children}
     </div>
   );

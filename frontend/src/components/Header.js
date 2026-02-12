@@ -1,4 +1,3 @@
-import React from 'react';
 import { Settings } from 'lucide-react';
 
 /**
@@ -7,7 +6,10 @@ import { Settings } from 'lucide-react';
  * - Desktop: Full header with text and status
  * - Mobile: Icon-only header with compact status
  */
-export function Header({ healthStatus = 'idle', onSettings }) {
+export function Header({
+  healthStatus = 'idle',
+  onSettings
+}) {
   const getStatusInfo = () => {
     switch (healthStatus) {
       case 'connected':
@@ -31,6 +33,7 @@ export function Header({ healthStatus = 'idle', onSettings }) {
         <div className="header-logo-text">
           <h1>مساعد القانون | Legal AI</h1>
           <p>أداة تحليل القضايا القانونية</p>
+          <p className="subtitle-en">Legal Case Analysis Assistant</p>
         </div>
       </div>
 
@@ -38,7 +41,10 @@ export function Header({ healthStatus = 'idle', onSettings }) {
       <div className="header-controls">
         <div className="status-indicator" title={status.text}>
           <div className={`status-dot ${status.class}`} />
-          <span>{status.text.split('|')[0]}</span>
+          <div className="status-text-stack">
+            <span>{status.text.split('|')[0]}</span>
+            <span className="en-small">{status.text.split('|')[1]}</span>
+          </div>
         </div>
 
         {/* Settings Button */}
