@@ -398,10 +398,10 @@ How can I help you today?""",
 **نسبة فوز المدعي:** {win_rate}% (بناءً على {sample_size} سوابق قضائية)
 
 **المبادئ القانونية المطبقة:**
-{principles_ar}
+{principles_text_ar}
 
 **التوصية:**
-{rec_ar}"""
+{rec_text_ar}"""
 
         response_en = f"""[Summary] **Case Analysis Summary:**
 
@@ -410,10 +410,10 @@ How can I help you today?""",
 **Plaintiff Win Rate:** {win_rate}% (Based on {sample_size} local precedents)
 
 **Applicable Legal Principles:**
-{principles_en}
+{principles_text_en}
 
 **Recommendation:**
-{rec_en}"""
+{rec_en_text if 'rec_en_text' in locals() else rec_text_en}"""
 
         return {
             "text": f"{response_ar}\n\n---\n\n{response_en}",
