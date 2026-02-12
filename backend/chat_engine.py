@@ -285,6 +285,15 @@ class ChatEngine:
             if user_translation:
                 response["user_translation"] = user_translation
 
+            # Final global cleaning of the response text
+            if "text" in response:
+                # Use current context analysis (could have been updated by self.analyzer above)
+                current_analysis = self.context.analysis_data or analysis_data or {}
+                facts = {
+                    "المبلغ المطالب به": current_analysis.get("recommendation", {}).get("award_amount")
+                }
+                response["text"] = self._clean_draft(response["text"], facts)
+
             return response
             
         except Exception as e:
@@ -594,12 +603,13 @@ Trend Statistics:
                 }, ensure_ascii=False)
                 
                 if is_judgement:
-                    system_prompt = """أنت مساعد قانوني خبير في النظام السعودي. الوثيقة المقدمة هي 'حكم قضائي' بالفعل.
-يجب أن تركز توصيتك على:
-1. إجراءات التنفيذ (محكمة التنفيذ).
-2. مواعيد الاعتراض (الاستئناف) - عادة 30 يوماً.
-3. الخطوات القادمة لتحصيل المبلغ المحكوم به.
-لا تقدم نصائح ما قبل المحاكمة (مثل التحقيق أو جمع الأدلة) لأن القضية حُسمت بالفعل."""
+                    system_prompt = """أنت مساعد قانوني خبير في النظام السعودي. الوثيقة المقدمة هي 'حكم قضائي' نهائي أو ابتدائي.
+يجب أن تركز توصيتك حصراً على مرحلة ما بعد الحكم:
+1. إجراءات محكمة التنفيذ (طلب التنفيذ).
+2. مواعيد الاعتراض (30 يوماً للاستئناف) إذا كان الحكم ابتدائياً.
+3. كيفية تحصيل المبلغ المحكوم به.
+4. تحذير من فوات مدة الاعتراض القانونية.
+لا تذكر أي نصائح حول جمع الأدلة أو التحقيق لأن القضية انتهت بصدور الحكم."""
                 else:
                     system_prompt = "أنت مساعد قانوني خبير في النظام السعودي. قدم توصية عملية ومباشرة بناءً على وقائع القضية المرفقة."
 
@@ -608,6 +618,17 @@ Trend Statistics:
                 
                 if not generated_rec or len(generated_rec.strip()) < 10:
                     raise ValueError("Empty or too short LLM response")
+                
+                # Deduplicate recommendations if it's a list-like output
+                lines = generated_rec.split('\n')
+                unique_lines = []
+                seen = set()
+                for line in lines:
+                    clean_line = line.strip().lower()
+                    if clean_line and clean_line not in seen:
+                        unique_lines.append(line)
+                        seen.add(clean_line)
+                generated_rec = '\n'.join(unique_lines)
                 
                 return {
                     "text": generated_rec,
@@ -735,15 +756,23 @@ Choose the type of draft you want to create:
                 if legal_context:
                     system_prompt += f"\n\n{legal_context}\n\nيجب عليك الاستشهاد بأرقام المواد المذكورة أعلاه في المسودة."
                 
-                prompt = f"""البيانات المستخرجة (JSON):
-{json.dumps(analysis, ensure_ascii=False)}
+                prompt = f"""قم بصياغة لائحة دعوى قضائية من نوع '{case_type_ar}' بشكل احترافي.
+يجب أن تتبع الهيكل التالي بدقة وتملأ البيانات من 'Fact Sheet':
 
-المطلوب:
-قم بصياغة لائحة دعوى قضائية من نوع '{case_type_ar}' بشكل احترافي.
-استخدم البيانات أعلاه لصياغة اللائحة.
-احرص على الاستناد إلى الأنظمة السعودية ذات الصلة (المذكورة أعلاه).
+[الهيكل المطلوب]:
+١. الجهة: إلى محكمة (المحكمة العامة)
+٢. الأطراف:
+   - المدعي: ............
+   - المدعى عليه: ............
+٣. موضوع الدعوى: {case_type_ar}
+٤. وقائع الدعوى: (اكتب هنا تفاصيل الحادث والأضرار والخطأ)
+٥. الأسانيد النظامية: (اذكر مواد النظام السعودي ذات الصلة)
+٦. الطلبات:
+   - إلزام المدعى عليه بدفع مبلغ ({amount}) ريال سعودي.
+   - أي طلبات أخرى ذات صلة.
 
-اجعل الصياغة قانونية ورسمية."""
+الحقائق لاستخدامها:
+{fact_sheet_str}"""
                 
                 generated_draft = self.llm.generate(prompt, system_prompt=system_prompt)
                 
@@ -841,13 +870,23 @@ We inform your honor that... [Based on case details]
                 if legal_context:
                     system_prompt += f"\n\n{legal_context}\n\nيجب عليك الاستشهاد بأرقام المواد المذكورة أعلاه في المسودة."
                 
-                prompt = f"""البيانات المستخرجة (JSON):
-{json.dumps(analysis, ensure_ascii=False)}
+                prompt = f"""قم بصياغة مذكرة دفاع (رد على دعوى) في قضية من نوع '{case_type_ar}' بشكل احترافي.
+يجب أن تتبع الهيكل التالي بدقة وتملأ البيانات من 'Fact Sheet':
 
-المطلوب:
-قم بصياغة مذكرة دفاع (رد على دعوى) في قضية من نوع '{case_type_ar}' بشكل احترافي.
-استخدم البيانات أعلاه لصياغة الدفوع الشكلية والموضوعية.
-فند الادعاءات بناءً على الوقائع المذكورة والمواد النظامية."""
+[الهيكل المطلوب]:
+١. الجهة: إلى محكمة (المحكمة العامة)
+٢. الأطراف:
+   - المدعي: ............
+   - المدعى عليه: ............
+٣. الدفوع الشكلية: (مثل عدم اختصاص المحكمة أو تقادم الدعوى)
+٤. الدفوع الموضوعية: (فند الادعاءات بناءً على الوقائع)
+٥. الأسانيد الشرعية والنظامية: (اذكر المواد التي تدعم موقفك)
+٦. الخاتمة والطلبات:
+   - رد الدعوى لعدم الصحة.
+   - أي طلبات أخرى.
+
+الحقائق لاستخدامها:
+{fact_sheet_str}"""
                 
                 generated_draft = self.llm.generate(prompt, system_prompt=system_prompt)
                 
@@ -912,25 +951,39 @@ Dismiss the claim and compel plaintiff to pay costs.""",
         if not text:
             return ""
             
-        # 1. Remove Chinese characters (hallucination hallmark for Qwen 1.5B)
-        text = re.sub(r'[\u4e00-\u9fff]+', '', text)
+        # 1. Remove Chinese characters and other non-Arabic/English hallucinations
+        text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\u2e80-\u2eff\u3000-\u303f\uff00-\uffef]+', '', text)
         
         # 2. Re-enforce actual amount if [بالمليون ريال] or similar exists
-        amount = facts.get("المبلغ المطالب به") or facts.get("المبلغ", "............")
+        amount = facts.get("المبلغ المطالب به") or facts.get("المبلغ") or facts.get("المبلغ المحكوم به") or "............"
         text = text.replace("[بالمليون ريال]", str(amount))
         text = text.replace("[المبلغ]", str(amount))
+        text = text.replace("_________ ريال", f"{amount} ريال")
         
-        # 3. Handle structural hallucinations
+        # 3. Handle structural hallucinations and generic placeholders
         text = text.replace("[المادة المبرمجة]", "المادة ذات الصلة")
+        text = text.replace("royal angels", "") # Specific hallucination seen in logs
+        text = text.replace("الملائكة الملكي", "")
         
         # 4. Remove generic placeholders that should be blanks
         placeholders = [
             "[اسم المدعي]", "[اسم المدعى عليه]", "[اسم الشخص]", 
             "[تاريخ]", "[تاريخ الدعوى]", "[التاريخ]",
-            "[الجهة المختصة]", "[العدد الزمني]"
+            "[الجهة المختصة]", "[العدد الزمني]", "[الاسم]", "[العنوان]"
         ]
         for p in placeholders:
             text = text.replace(p, "............")
+        
+        # 5. Clean excessive repetitive underscores
+        text = re.sub(r'_{5,}', '............', text)
+        
+        # 6. Remove repetitive lines (common in hallucinations)
+        lines = text.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            if line.strip() and (not cleaned_lines or line.strip() != cleaned_lines[-1].strip()):
+                cleaned_lines.append(line)
+        text = '\n'.join(cleaned_lines)
             
         return text.strip()
 
