@@ -174,42 +174,50 @@
    DARK THEME OVERRIDES
    =================================== */
 [data-theme='dark'] {
-  /* Colors */
-  --color-primary: #818cf8;
-  /* Lighter Indigo for dark mode */
-  --color-primary-dark: #6366f1;
+  /* ---- COLORS: Premium Dark (Emerald/Teal) ---- */
+  --color-primary: #10b981;
+  /* Emerald 500 (Brighter for Dark) */
+  --color-primary-dark: #059669;
+  /* Emerald 600 */
+  --color-primary-darker: #047857;
+  /* Emerald 700 */
+  --color-primary-light: #34d399;
+  /* Emerald 400 */
+  --color-primary-lighter: #6ee7b7;
+  /* Emerald 300 */
+  --color-primary-pale: rgba(16, 185, 129, 0.1);
+  --color-primary-faint: rgba(16, 185, 129, 0.05);
 
-  /* (Cyan accent removed for minimal palette) */
+  /* Accent - Amber/Gold */
+  --color-accent: #fbbf24;
+  /* Amber 400 */
 
   /* Neutral Colors (Inverted) */
-  --color-white: #0f172a;
-  /* Midnight Blue as "white" baseline */
-  /* --color-gray-50: #1e293b;
-  --color-gray-100: #334155;
-  --color-gray-200: #475569;
-  --color-gray-300: #64748b;
-  --color-gray-800: #e2e8f0;
-  --color-gray-900: #f8fafc; */
+  --color-white: #020617;
+  /* Deepest Slate */
 
-  /* UI Backgrounds - Dark */
-  --color-bg-app: #0f172a;
-  --gradient-bg-app: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  /* UI Backgrounds - Deep & Atmospheric */
+  --color-bg-app: #020617;
+  /* Deep Radial Gradient with subtle emerald glow */
+  --gradient-bg-app: radial-gradient(circle at top right, #064e3b 0%, #020617 70%);
+  --pattern-bg-app: radial-gradient(rgba(255, 255, 255, 0.05) 0.8px, transparent 0.8px);
 
-  --color-bg-primary: #0f172a;
-  --color-bg-secondary: #1e293b;
+  --color-bg-primary: rgba(15, 23, 42, 0.8);
+  /* Glassy Deep Slate */
+  --color-bg-secondary: rgba(30, 41, 59, 0.5);
+  /* Glassy Secondary */
   --color-bg-tertiary: #1e293b;
 
-  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
-  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  /* Glassmorphism Tokens - Stronger for Dark */
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-backdrop: blur(16px);
+  --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
 
-  /* Text Colors - Dark */
+  /* Text Colors - Optimized Contrast */
   --color-text-primary: #f8fafc;
-  /* Off-white */
-  --color-text-secondary: #cbd5e1;
-  /* Light Slate */
-  --color-text-tertiary: #94a3b8;
-  /* Muted Slate */
-  --color-text-inverse: #0f172a;
+  --color-text-secondary: #94a3b8;
+  --color-text-tertiary: #64748b;
+  --color-text-inverse: #020617;
 }
 
 /* ===================================
@@ -297,7 +305,7 @@ select {
 }
 
 [data-theme='dark'] .app-header {
-  border-bottom-color: var(--color-gray-800);
+  border-bottom-color: transparent;
 }
 
 .app-sidebar {
@@ -315,7 +323,7 @@ select {
 }
 
 [data-theme='dark'] .app-sidebar {
-  border-left-color: var(--color-gray-800);
+  border-left-color: transparent;
 }
 
 .app-main {
@@ -343,7 +351,7 @@ select {
 }
 
 [data-theme='dark'] .app-tools {
-  border-right-color: var(--color-gray-800);
+  border-right-color: transparent;
 }
 
 /* Responsive: Tablet */
@@ -815,8 +823,9 @@ select {
 }
 
 [data-theme='dark'] .message-assistant .message-bubble {
-  border-color: var(--color-gray-700);
+  border-color: rgba(255, 255, 255, 0.1);
   background-color: var(--color-bg-secondary);
+  backdrop-filter: blur(10px);
 }
 
 .message.user .message-bubble:hover {
