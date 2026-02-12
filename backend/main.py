@@ -459,6 +459,7 @@ async def chat(request: ChatRequest):
             suggested_actions=suggested_actions,
             timestamp=datetime.now().isoformat(),
             user_translation=response.get("user_translation"),
+            assistant_translation=response.get("assistant_translation"),
             citations=response.get("citations", []),
             metadata=response.get("metadata", {}),
             error=response.get("error")

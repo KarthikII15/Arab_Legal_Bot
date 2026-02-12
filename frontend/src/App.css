@@ -851,6 +851,24 @@ select {
   font-family: var(--font-family-arabic);
 }
 
+.message-translation {
+  margin-top: var(--space-3);
+  font-size: 0.9em;
+  opacity: 0.9;
+  font-style: italic;
+}
+
+.translation-divider {
+  height: 1px;
+  background: currentColor;
+  opacity: 0.2;
+  margin: var(--space-2) 0;
+}
+
+.translation-content {
+  font-family: var(--font-family-body);
+}
+
 /* Message Time */
 .message-time {
   font-size: var(--font-size-xs);

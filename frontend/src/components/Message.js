@@ -6,12 +6,12 @@ import { Copy, RotateCcw, ThumbsUp, ThumbsDown } from 'lucide-react';
  * Display single message with actions (copy, regenerate, feedback)
  * Supports rich content including citations
  */
-export function Message({ 
-  message, 
-  onCopy, 
-  onRegenerate, 
-  onFeedback, 
-  showActions = true 
+export function Message({
+  message,
+  onCopy,
+  onRegenerate,
+  onFeedback,
+  showActions = true
 }) {
   const [copied, setCopied] = useState(false);
   const [feedbackGiven, setFeedbackGiven] = useState(null);
@@ -48,6 +48,16 @@ export function Message({
           {message.content}
         </div>
 
+        {/* Translation Block */}
+        {message.translation && (
+          <div className="message-translation">
+            <div className="translation-divider"></div>
+            <div className="translation-content">
+              {message.translation}
+            </div>
+          </div>
+        )}
+
         {/* Citations */}
         {message.citations && message.citations.length > 0 && (
           <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid currentColor', opacity: 0.8 }}>
@@ -55,8 +65,8 @@ export function Message({
               المصادر | Sources:
             </div>
             {message.citations.map((citation, idx) => (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className="citation-card"
                 style={{ marginBottom: '0.5rem' }}
               >
@@ -88,7 +98,7 @@ export function Message({
       {showActions && !isUser && (
         <div className="message-actions">
           {/* Copy Button */}
-          <button 
+          <button
             className="action-button"
             onClick={handleCopy}
             title={copied ? '✓ تم النسخ' : 'نسخ'}
@@ -98,7 +108,7 @@ export function Message({
           </button>
 
           {/* Regenerate Button */}
-          <button 
+          <button
             className="action-button"
             onClick={handleRegenerate}
             title="إعادة توليد"
@@ -108,7 +118,7 @@ export function Message({
           </button>
 
           {/* Feedback Buttons */}
-          <button 
+          <button
             className={`action-button ${feedbackGiven === 'positive' ? 'active' : ''}`}
             onClick={() => handleFeedback('positive')}
             title="إجابة مفيدة"
@@ -120,7 +130,7 @@ export function Message({
             <ThumbsUp size={14} />
           </button>
 
-          <button 
+          <button
             className={`action-button ${feedbackGiven === 'negative' ? 'active' : ''}`}
             onClick={() => handleFeedback('negative')}
             title="إجابة غير مفيدة"

@@ -121,11 +121,12 @@ function App() {
     return newMessage.id;
   };
 
-  const addAssistantMessage = (text, intent = '', citations = []) => {
+  const addAssistantMessage = (text, intent = '', citations = [], translation = null) => {
     const newMessage = {
       id: Date.now(),
       role: 'assistant',
       content: text,
+      translation: translation,
       intent: intent,
       citations: citations,
       timestamp: new Date().toISOString()
@@ -136,7 +137,7 @@ function App() {
   const sendChatMessage = async (userMessage) => {
     if (!userMessage.trim()) return;
 
-    addUserMessage(userMessage);
+    const msgId = addUserMessage(userMessage);
     setLoading(true);
 
     try {
@@ -147,8 +148,36 @@ function App() {
       });
       setHealthStatus("connected");
 
-      const { text, citations } = response.data;
-      addAssistantMessage(text, '', citations || []);
+      const { text, citations, user_translation, assistant_translation } = response.data;
+
+      // Update user message with translation if available
+      if (user_translation) {
+        setMessages(prev => prev.map(msg =>
+          msg.id === msgId ? { ...msg, translation: user_translation } : msg
+        ));
+      }
+
+      addAssistantMessage(text, '', citations || [], assistant_translation);
+
+      // Add to conversations if new and no file was uploaded
+      if (!currentConversationId) {
+        const newConvId = Date.now();
+        setCurrentConversationId(newConvId);
+        setConversations(prev => [{
+          id: newConvId,
+          title: userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : ''),
+          preview: 'محادثة نصية',
+          timestamp: new Date().toISOString()
+        }, ...prev]);
+      } else if (!conversations.find(c => c.id === currentConversationId)) {
+        // Fallback for cases where ID is set but not in list
+        setConversations(prev => [{
+          id: currentConversationId,
+          title: userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : ''),
+          preview: 'محادثة نصية',
+          timestamp: new Date().toISOString()
+        }, ...prev]);
+      }
 
     } catch (error) {
       console.error("Chat error:", error);
@@ -357,11 +386,7 @@ function App() {
             'قضية قانونية'
           ]
         } : null}
-        relatedCases={[]}
-        /* ... imports ... */
-
-        /* ... inside App component ... */
-
+        relatedCases={analysis?.related_cases || []}
         onExport={() => {
           try {
             const doc = new jsPDF();
@@ -377,7 +402,6 @@ function App() {
             let y = 30;
             const lineHeight = 7;
             const pageHeight = doc.internal.pageSize.height;
-            const margin = 10;
             const maxWidth = 190;
 
             // 1. Case Info
@@ -403,46 +427,32 @@ function App() {
             doc.setFontSize(10);
 
             messages.forEach((msg) => {
-              // Check for page break
-              if (y > pageHeight - 20) {
-                doc.addPage();
-                y = 20;
-              }
-
-              // Role Header
+              if (y > pageHeight - 20) { doc.addPage(); y = 20; }
               doc.setFont(undefined, 'bold');
               const role = msg.role === 'user' ? 'User' : 'Assistant';
               doc.text(`${role}:`, 10, y);
               y += 5;
 
-              // Message Content
               doc.setFont(undefined, 'normal');
               const splitText = doc.splitTextToSize(msg.content, maxWidth);
-
               splitText.forEach(line => {
-                if (y > pageHeight - 10) {
-                  doc.addPage();
-                  y = 20;
-                }
+                if (y > pageHeight - 10) { doc.addPage(); y = 20; }
                 doc.text(line, 10, y);
                 y += 5;
               });
-
-              y += 10; // Spacing between messages
+              y += 10;
             });
 
-            // Save
             doc.save(`case-analysis-${currentConversationId || Date.now()}.pdf`);
-
           } catch (err) {
             console.error("PDF Export failed:", err);
-            alert("Failed to allow PDF export. Please try again.");
+            alert("Failed to export PDF.");
           }
         }}
         onRegenerate={() => {
-          const lastMessage = messages.filter(m => m.role === 'assistant').pop();
-          if (lastMessage) {
-            sendChatMessage(lastMessage.content);
+          const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+          if (lastUserMessage) {
+            sendChatMessage(lastUserMessage.content);
           }
         }}
         onCopyAll={() => {

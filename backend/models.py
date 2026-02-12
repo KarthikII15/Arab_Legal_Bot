@@ -149,6 +149,7 @@ class ChatResponse(BaseModel):
     suggested_actions: List[SuggestedAction] = []
     timestamp: str
     user_translation: Optional[str] = None
+    assistant_translation: Optional[str] = None
     citations: List[Dict[str, Any]] = []
     metadata: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
