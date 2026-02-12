@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import {
+  Upload, Send, FileText, Sparkles, X,
+  CheckCircle2, TrendingUp, Scale,
+  Settings
+} from 'lucide-react';
 import './App.css';
 
 function App() {
@@ -9,11 +13,15 @@ function App() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [healthStatus, setHealthStatus] = useState("Checking...");
+  const [healthStatus, setHealthStatus] = useState("checking");
   const [analysis, setAnalysis] = useState(null);
   const [showDetailedView, setShowDetailedView] = useState(false);
-  
+  const [showSettings, setShowSettings] = useState(false);
+  const [theme] = useState('light');
+
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const greetingSent = useRef(false);
   const API_BASE = "http://127.0.0.1:5000";
 
   // Scroll to bottom on new messages
@@ -21,90 +29,56 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send greeting message on mount (from backend)
-  useEffect(() => {
-    const sendGreeting = async () => {
-      setMessages(prevMessages => {
-        if (prevMessages.length === 0) {
-          // Add loading state
-          const loadingMsg = {
-            id: Date.now(),
-            role: 'assistant',
-            content: "جاري التحميل...",
-            intent: "loading",
-            suggestedActions: [],
-            timestamp: new Date().toISOString()
-          };
-          return [loadingMsg];
-        }
-        return prevMessages;
-      });
-
-      // Fetch greeting from backend
-      try {
-        const response = await axios.post(`${API_BASE}/chat`, {
-          message: "مرحبا"
-        });
-        const { text, intent, suggested_actions } = response.data;
-        
-        // Replace loading message with actual greeting
-        setMessages(prevMessages => {
-          const filtered = prevMessages.filter(m => m.intent !== "loading");
-          return [...filtered, {
-            id: Date.now(),
-            role: 'assistant',
-            content: text,
-            intent: intent,
-            suggestedActions: suggested_actions || [],
-            timestamp: new Date().toISOString()
-          }];
-        });
-      } catch (error) {
-        console.error("Error loading greeting:", error);
-        addAssistantMessage(
-          "خطأ في جلب الرسالة الترحيبية. يرجى تحديث الصفحة.\n\nError loading greeting. Please refresh the page.",
-          "error",
-          []
-        );
-      }
-    };
-
-    sendGreeting();
-  }, []);
-
-  // Check health on mount and periodically
+  // Check health on mount
   useEffect(() => {
     checkHealth();
-    const interval = setInterval(checkHealth, 5000);
+    const interval = setInterval(checkHealth, 10000);
+
+    // Send greeting message
+    if (!greetingSent.current && messages.length === 0) {
+      greetingSent.current = true;
+      addAssistantMessage(
+        "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n• 📊 تحليل القضايا (Case Analysis)\n• ⚖️ تصنيف القضايا (Classification)\n• 💡 التوصيات (Recommendations)\n• 🔍 البحث في السوابق (Precedent Search)\n\n---\n\nWelcome! 👋 I am your AI Legal Assistant.\n\nI can help you with:\n• Legal Case Analysis\n• Case Classification\n• Recommendations\n• Similar Case Interpretation",
+        "greeting",
+        [
+          { label: "📤 رفع ملف قضية | Upload Case", action: "upload", icon: "upload" },
+          { label: "💬 طرح سؤال | Ask Question", action: "ask_question", icon: "message" }
+        ]
+      );
+    }
+
     return () => clearInterval(interval);
   }, []);
 
   const checkHealth = async () => {
     try {
-      await axios.get(`${API_BASE}/health`);
-      setHealthStatus("Connected ✅");
+      await axios.get(`${API_BASE}/health`, { timeout: 3000 });
+      setHealthStatus("connected");
     } catch (err) {
-      setHealthStatus("Disconnected ❌");
+      setHealthStatus("disconnected");
     }
   };
 
-  const addUserMessage = (text) => {
+  const addUserMessage = (text, fileData = null) => {
     const newMessage = {
       id: Date.now(),
       role: 'user',
       content: text,
+      fileData: fileData,
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, newMessage]);
+    return newMessage.id;
   };
 
-  const addAssistantMessage = (text, intent = '', suggestedActions = []) => {
+  const addAssistantMessage = (text, intent = '', suggestedActions = [], citations = []) => {
     const newMessage = {
       id: Date.now(),
       role: 'assistant',
       content: text,
       intent: intent,
       suggestedActions: suggestedActions,
+      citations: citations, // Explainability Layer
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, newMessage]);
@@ -113,8 +87,7 @@ function App() {
   const sendChatMessage = async (userMessage) => {
     if (!userMessage.trim()) return;
 
-    // Add user message to chat
-    addUserMessage(userMessage);
+    const userMsgId = addUserMessage(userMessage);
     setInputText('');
     setLoading(true);
 
@@ -124,16 +97,25 @@ function App() {
         analysis_data: analysis,
         case_text: analysis ? "Case analyzed" : null
       });
+      setHealthStatus("connected"); // Force status sync on success
 
-      const { text, intent, suggested_actions } = response.data;
-      addAssistantMessage(text, intent, suggested_actions);
+      const { text, intent, suggested_actions, citations, user_translation } = response.data;
+
+      // Update user message with translation if available
+      if (user_translation) {
+        setMessages(prev => prev.map(msg =>
+          msg.id === userMsgId ? { ...msg, translation: user_translation } : msg
+        ));
+      }
+
+      addAssistantMessage(text, intent, suggested_actions || [], citations || []);
 
     } catch (error) {
       console.error("Chat error:", error);
       addAssistantMessage(
-        "عذراً، حدث خطأ في معالجة طلبك. يرجى المحاولة مجدداً.\n\nSorry, an error occurred. Please try again.",
+        "عذراً، حدث خطأ في معالجة طلبك. يرجى المحاولة مجدداً.\n\nSorry, an error occurred processing your request.",
         "error",
-        []
+        [{ label: "🔄 إعادة المحاولة", action: "retry" }]
       );
     } finally {
       setLoading(false);
@@ -142,16 +124,19 @@ function App() {
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      setSelectedFile(file);
     }
   };
 
   const handleFileUpload = async () => {
     if (!selectedFile) return;
 
-    addUserMessage(`📤 رفع ملف: ${selectedFile.name}\nUploading file: ${selectedFile.name}`);
+    addUserMessage(`رفع الملف: ${selectedFile.name}`, {
+      name: selectedFile.name,
+      size: selectedFile.size
+    });
     setLoading(true);
-    setSelectedFile(null);
 
     const formData = new FormData();
     formData.append("file", selectedFile);
@@ -162,23 +147,28 @@ function App() {
       });
 
       setAnalysis(response.data);
+      setHealthStatus("connected"); // Force status sync on success
+      setSelectedFile(null);
+
+      const confidence = (response.data.classification.confidence * 100).toFixed(0);
 
       addAssistantMessage(
-        `تم تحليل الملف بنجاح! ✅\n\nنوع القضية: ${response.data.classification.name_ar}\nدرجة الثقة: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\n---\n\nFile analyzed successfully! ✅\n\nCase Type: ${response.data.classification.name_en}\nConfidence: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\nيمكنك الآن طرح أسئلة حول القضية أو...\nYou can now ask questions about the case or...`,
+        `✅ تم تحليل الملف بنجاح!\n\n📋 نوع القضية: ${response.data.classification.name_ar}\n📊 درجة الثقة: ${confidence}%\n\n---\n\n✅ File analyzed successfully!\n\n📋 Case Type: ${response.data.classification.name_en}\n📊 Confidence: ${confidence}%`,
         "file_analyzed",
         [
-          { label: "عرض التفاصيل الكاملة", action: "show_details" },
-          { label: "ملخص القضية", action: "case_summary" },
-          { label: "توصيات", action: "recommendations" }
+          { label: "📊 Details | عرض التفاصيل", action: "show_details", icon: "details" },
+          { label: "📝 Summary | ملخص القضية", action: "case_summary", icon: "summary" },
+          { label: "💡 Recommendations | التوصيات", action: "recommendations", icon: "recommend" },
+          { label: "🔍 Similar Cases | قضايا مشابهة", action: "similar_cases", icon: "search" }
         ]
       );
 
     } catch (error) {
       console.error("Upload error:", error);
       addAssistantMessage(
-        `خطأ في رفع الملف: ${error.response?.data?.detail || error.message}\n\nFile upload error: ${error.response?.data?.detail || error.message}`,
+        `❌ خطأ في رفع الملف\n\n${error.response?.data?.detail || error.message}\n\nError uploading file`,
         "error",
-        []
+        [{ label: "🔄 حاول مرة أخرى", action: "upload" }]
       );
     } finally {
       setLoading(false);
@@ -188,40 +178,33 @@ function App() {
   const handleSuggestedAction = (action) => {
     switch (action) {
       case "upload":
-        document.getElementById("file-input").click();
+        fileInputRef.current?.click();
         break;
-      case "paste_text":
-        sendChatMessage("أريد لصق نص القضية\nI want to paste case text");
-        break;
-      case "learn_more":
-        sendChatMessage("أخبرني المزيد عن الخدمات\nTell me more about the services");
+      case "ask_question":
+        document.querySelector('.chat-input')?.focus();
         break;
       case "case_summary":
-        sendChatMessage("ملخص القضية (case summary)");
+        sendChatMessage("قدم لي ملخصاً شاملاً للقضية");
         break;
       case "show_details":
-        setShowDetailedView(!showDetailedView);
+        setShowDetailedView(true);
         break;
       case "recommendations":
-        sendChatMessage("التوصيات (recommendations)");
+        sendChatMessage("ما هي التوصيات القانونية لهذه القضية؟");
         break;
       case "similar_cases":
-        sendChatMessage("قضايا مشابهة (similar cases)");
+        sendChatMessage("اعرض لي قضايا مشابهة");
         break;
       case "legal_principles":
-        sendChatMessage("المبادئ القانونية (legal principles)");
+        sendChatMessage("ما هي المبادئ القانونية المتعلقة بهذه القضية؟");
         break;
-      case "draft_claim":
-        sendChatMessage("كتابة لائحة دعوى (write claim draft)");
-        break;
-      case "draft_defense":
-        sendChatMessage("كتابة مذكرة دفاع (write defense memo)");
-        break;
-      case "full_analysis":
-        sendChatMessage("تحليل شامل (full analysis)");
+      case "retry":
+        if (messages.length >= 2) {
+          const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+          if (lastUserMsg) sendChatMessage(lastUserMsg.content);
+        }
         break;
       default:
-        // For any other action, send it as a message
         sendChatMessage(action);
     }
   };
@@ -233,165 +216,347 @@ function App() {
     }
   };
 
-  return (
-    <div className="chat-container" dir="rtl">
-      {/* Header */}
-      <div className="chat-header">
-        <div className="header-content">
-          <h1>🏛️ المساعد القانوني الذكي</h1>
-          <p>AI Legal Assistant v2.0</p>
-        </div>
-        <button
-          className={`btn btn-sm ${healthStatus.includes("Connected") ? "btn-success" : "btn-danger"}`}
-          onClick={checkHealth}
-        >
-          {healthStatus}
-        </button>
-      </div>
+  const getStatusColor = () => {
+    switch (healthStatus) {
+      case 'connected': return '#10b981';
+      case 'disconnected': return '#ef4444';
+      default: return '#f59e0b';
+    }
+  };
 
-      {/* Messages Area */}
-      <div className="chat-messages">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`message message-${msg.role}`}>
-            <div className="message-avatar">
-              {msg.role === 'user' ? '👤' : '⚖️'}
+  const getStatusText = () => {
+    switch (healthStatus) {
+      case 'connected': return 'متصل';
+      case 'disconnected': return 'غير متصل';
+      default: return 'جاري الفحص...';
+    }
+  };
+
+  return (
+    <div className={`app-container theme-${theme}`}>
+      {/* Header */}
+      <header className="app-header">
+        <div className="header-left">
+          <div className="logo-section">
+            <div className="logo-icon">
+              <Scale size={28} />
             </div>
-            <div className="message-content">
-              <div className="message-text">
-                {msg.content}
-              </div>
-              
-              {/* Suggested Actions */}
-              {msg.suggestedActions && msg.suggestedActions.length > 0 && (
-                <div className="suggested-actions mt-2">
-                  {msg.suggestedActions.map((action, idx) => (
-                    <button
-                      key={idx}
-                      className="btn btn-sm btn-outline-primary action-btn"
-                      onClick={() => handleSuggestedAction(action.action)}
-                      disabled={loading}
-                    >
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="header-text">
+              <h1>المساعد القانوني الذكي</h1>
+              <p>AI Legal Assistant</p>
             </div>
           </div>
-        ))}
-        {loading && (
-          <div className="message message-assistant">
-            <div className="message-avatar">⚖️</div>
-            <div className="message-content">
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
+        </div>
+
+        <div className="header-right">
+          <div className="status-indicator">
+            <div
+              className="status-dot"
+              style={{ backgroundColor: getStatusColor() }}
+            />
+            <span className="status-text">{getStatusText()}</span>
+          </div>
+
+          <button
+            className="icon-btn"
+            onClick={() => setShowSettings(!showSettings)}
+            title="Settings"
+          >
+            <Settings size={20} />
+          </button>
+        </div>
+      </header>
+
+      {/* Main Chat Area */}
+      <main className="chat-main">
+        <div className="messages-container">
+          {messages.map((msg) => (
+            <div key={msg.id} className={`message-wrapper message-${msg.role}`}>
+              <div className="message-avatar">
+                {msg.role === 'user' ? (
+                  <div className="avatar user-avatar">👤</div>
+                ) : (
+                  <div className="avatar assistant-avatar">
+                    <Scale size={20} />
+                  </div>
+                )}
               </div>
+
+              <div className="message-bubble">
+                {msg.fileData && (
+                  <div className="file-attachment">
+                    <FileText size={16} />
+                    <span>{msg.fileData.name}</span>
+                    <span className="file-size">
+                      ({(msg.fileData.size / 1024).toFixed(1)} KB)
+                    </span>
+                  </div>
+                )}
+
+                <div className="message-content">
+                  {msg.content && msg.content.includes("---") ? (
+                    (() => {
+                      const parts = msg.content.split("---");
+                      const arabicText = parts[0].trim();
+                      const englishText = parts.slice(1).join("---").trim();
+                      return (
+                        <>
+                          <div className="text-arabic" dir="rtl">{arabicText}</div>
+                          <div className="translation-separator"></div>
+                          <div className="text-english" dir="ltr">{englishText}</div>
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <>
+                      <div className="message-text">
+                        {msg.content}
+                      </div>
+                      {msg.translation && (
+                        <>
+                          <div className="translation-separator"></div>
+                          <div className="text-english" dir="ltr">{msg.translation}</div>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Explainability Layer: Citations */}
+                {msg.citations && msg.citations.length > 0 && (
+                  <div className="citations-footer mt-3 pt-2 border-top border-secondary-subtle">
+                    <h6 className="small text-muted mb-2" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      📚 Sources Used | المصادر:
+                    </h6>
+                    <div className="d-flex flex-wrap gap-2">
+                      {msg.citations.map((cite, idx) => (
+                        <div key={idx} className="citation-card p-2 bg-white rounded border" style={{ minWidth: '180px', maxWidth: '100%', flex: '1 1 auto', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                          <div className="d-flex justify-content-between align-items-center mb-1">
+                            <span className="badge bg-light text-dark border">{cite.source}</span>
+                            <span className="badge bg-success-subtle text-success small">Art. {cite.article_number}</span>
+                          </div>
+                          <p className="small text-secondary mb-0 text-end" style={{ fontSize: '0.8rem', lineHeight: '1.4', maxHeight: '60px', overflow: 'hidden' }} title={cite.text}>
+                            {cite.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {msg.suggestedActions && msg.suggestedActions.length > 0 && (
+                  <div className="action-buttons">
+                    {msg.suggestedActions.map((action, idx) => (
+                      <button
+                        key={idx}
+                        className="action-chip"
+                        onClick={() => handleSuggestedAction(action.action)}
+                        disabled={loading}
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="message-time">
+                  {new Date(msg.timestamp).toLocaleTimeString('ar-SA', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="message-wrapper message-assistant">
+              <div className="message-avatar">
+                <div className="avatar assistant-avatar">
+                  <Scale size={20} />
+                </div>
+              </div>
+              <div className="message-bubble typing-bubble">
+                <div className="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+      </main>
+
+      {/* Input Area */}
+      <footer className="chat-footer">
+        {selectedFile && (
+          <div className="file-preview">
+            <div className="file-info">
+              <FileText size={18} />
+              <span className="file-name">{selectedFile.name}</span>
+              <span className="file-size">
+                {(selectedFile.size / 1024).toFixed(1)} KB
+              </span>
+            </div>
+            <div className="file-actions">
+              <button
+                className="btn-upload"
+                onClick={handleFileUpload}
+                disabled={loading}
+              >
+                <Upload size={16} />
+                تحليل
+              </button>
+              <button
+                className="btn-cancel"
+                onClick={() => setSelectedFile(null)}
+              >
+                <X size={16} />
+              </button>
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* Detailed View Modal */}
-      {showDetailedView && analysis && (
-        <div className="detailed-view-modal">
-          <div className="detailed-view-content">
-            <button 
-              className="btn-close-modal"
-              onClick={() => setShowDetailedView(false)}
-            >
-              ✕
-            </button>
-            
-            {/* Classification */}
-            <div className="detail-card">
-              <h5 className="detail-title">🏷️ تصنيف القضية</h5>
-              <p><strong>{analysis.classification.name_ar}</strong></p>
-              <p className="text-muted">{analysis.classification.name_en}</p>
-              <p className="small">درجة الثقة: {(analysis.classification.confidence * 100).toFixed(0)}%</p>
-            </div>
-
-            {/* Trends */}
-            {analysis.trends && (
-              <div className="detail-card">
-                <h5 className="detail-title">📊 الإحصائيات</h5>
-                <div className="row">
-                  <div className="col-6">
-                    <p className="stat-label">نسبة فوز المدعي</p>
-                    <p className="stat-value">{analysis.trends.plaintiff_win_rate}%</p>
-                  </div>
-                  <div className="col-6">
-                    <p className="stat-label">متوسط التعويض</p>
-                    <p className="stat-value">{analysis.trends.average_compensation.toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Recommendation */}
-            {analysis.recommendation && (
-              <div className="detail-card">
-                <h5 className="detail-title">💡 التوصية</h5>
-                <p>{analysis.recommendation.recommendation_ar}</p>
-                <p className="small text-muted mt-2">Confidence: {(analysis.recommendation.confidence * 100).toFixed(0)}%</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Input Area */}
-      <div className="chat-input-area">
-        <div className="input-actions">
+        <div className="input-container">
           <input
             type="file"
-            id="file-input"
-            hidden
+            ref={fileInputRef}
             onChange={handleFileChange}
             accept=".pdf,.docx,.txt"
+            style={{ display: 'none' }}
           />
-          <button
-            className="btn btn-sm btn-outline-secondary"
-            onClick={() => document.getElementById("file-input").click()}
-            title="رفع ملف"
-          >
-            📁
-          </button>
-          
-          {selectedFile && (
-            <button
-              className="btn btn-sm btn-success"
-              onClick={handleFileUpload}
-              disabled={loading}
-            >
-              ✓ {selectedFile.name}
-            </button>
-          )}
-        </div>
 
-        <div className="input-wrapper">
+          <button
+            className="attach-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading}
+            title="إرفاق ملف"
+          >
+            <Upload size={20} />
+          </button>
+
           <textarea
             className="chat-input"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="اكتب سؤالك... (Type your question...)"
+            placeholder="اكتب سؤالك هنا... (Type your question here...)"
             disabled={loading}
-            rows="2"
+            rows="1"
           />
+
           <button
-            className="btn-send"
+            className="send-btn"
             onClick={() => sendChatMessage(inputText)}
             disabled={loading || !inputText.trim()}
             title="إرسال"
           >
-            ➤
+            <Send size={20} />
           </button>
         </div>
-      </div>
-    </div>
+      </footer>
+
+      {/* Detailed Analysis Modal */}
+      {showDetailedView && analysis && (
+        <div className="modal-overlay" onClick={() => setShowDetailedView(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>
+                <Sparkles size={24} />
+                Detailed Case Analysis | تحليل القضية التفصيلي
+              </h2>
+              <button
+                className="modal-close"
+                onClick={() => setShowDetailedView(false)}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Classification Card */}
+              <div className="info-card">
+                <div className="card-header">
+                  <FileText size={20} />
+                  <h3>Case Classification | تصنيف القضية</h3>
+                </div>
+                <div className="card-body">
+                  <div className="classification-info">
+                    <div className="classification-name">
+                      <p className="arabic">{analysis.classification.name_ar}</p>
+                      <p className="english">{analysis.classification.name_en}</p>
+                    </div>
+                    <div className="confidence-badge">
+                      {(analysis.classification.confidence * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Statistics Card */}
+              {analysis.trends && (
+                <div className="info-card">
+                  <div className="card-header">
+                    <TrendingUp size={20} />
+                    <h3>Statistics & Trends | الإحصائيات والاتجاهات</h3>
+                  </div>
+                  <div className="card-body">
+                    <div className="stats-grid">
+                      <div className="stat-item">
+                        <div className="stat-label">Plaintiff Win Rate | نسبة فوز المدعي</div>
+                        <div className="stat-value success">
+                          {analysis.trends.plaintiff_win_rate}%
+                        </div>
+                      </div>
+                      <div className="stat-item">
+                        <div className="stat-label">Average Compensation | متوسط التعويض</div>
+                        <div className="stat-value primary">
+                          {analysis.trends.average_compensation.toLocaleString()} ر.س
+                        </div>
+                      </div>
+                      {analysis.trends.median_duration && (
+                        <div className="stat-item">
+                          <div className="stat-label">Average Duration | متوسط المدة</div>
+                          <div className="stat-value">
+                            {analysis.trends.median_duration} يوم
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Recommendation Card */}
+              {analysis.recommendation && (
+                <div className="info-card recommendation-card">
+                  <div className="card-header">
+                    <CheckCircle2 size={20} />
+                    <h3>Legal Recommendation | التوصية القانونية</h3>
+                  </div>
+                  <div className="card-body">
+                    <p className="recommendation-text">
+                      {analysis.recommendation.recommendation_ar}
+                    </p>
+                    <p className="recommendation-text english" style={{ fontStyle: 'italic', opacity: 0.8, fontSize: '0.9rem', borderTop: '1px solid #eee', marginTop: '10px', paddingTop: '10px' }}>
+                      {analysis.recommendation.recommendation_en}
+                    </p>
+                    <div className="recommendation-confidence">
+                      <span>Confidence Level | درجة الثقة:</span>
+                      <strong>{(analysis.recommendation.confidence * 100).toFixed(0)}%</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+      }
+    </div >
   );
 }
 

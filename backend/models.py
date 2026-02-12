@@ -98,6 +98,7 @@ class AnalyzeResponse(BaseModel):
     trends: Optional[TrendStats] = None
     recommendation: Optional[Recommendation] = None
     entities: Optional[Dict[str, Any]] = None
+    text: Optional[str] = None  # Added to return original text
 
 class DraftRequest(BaseModel):
     case_type: str
@@ -147,6 +148,8 @@ class ChatResponse(BaseModel):
     intent: str
     suggested_actions: List[SuggestedAction] = []
     timestamp: str
+    user_translation: Optional[str] = None
+    citations: List[Dict[str, Any]] = []
     metadata: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 

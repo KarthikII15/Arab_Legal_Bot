@@ -81,6 +81,8 @@ async def startup_event():
         # Initialize Chat Engine
         logger.info("Loading Chat Engine...")
         chat_engine = ChatEngine()
+        # Inject analysis capability into chat engine
+        chat_engine.set_analyzer(execute_full_analysis)
         
         logger.info("✅ System ready. All engines loaded successfully.")
         logger.info("   🔍 Similarity Engine: READY")
@@ -160,89 +162,76 @@ async def summarize_case(request: SummarizeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Full Analysis Endpoint (NEW — Intelligence Layer) ─────────────────
+async def execute_full_analysis(text: str, top_k: int = 5) -> AnalyzeResponse:
+    """Standalone logic for full legal analysis pipeline."""
+    if not similarity_engine:
+        raise ValueError("Similarity engine not initialized")
+    
+    # Step 0: Extract Entities
+    logger.info("Step 0/5: Extracting entities...")
+    entities = EntityExtractor.extract(text)
+
+    # Step 1: Classify case type
+    logger.info("Step 1/5: Classifying case type...")
+    classification_raw = classify_case(text)
+    classification = CaseClassification(
+        case_type=classification_raw["case_type"],
+        name_ar=classification_raw["name_ar"],
+        name_en=classification_raw["name_en"],
+        confidence=classification_raw["confidence"],
+        matched_keywords=classification_raw["matched_keywords"],
+        sub_types=[SubType(**st) for st in classification_raw.get("sub_types", [])]
+    )
+    
+    # Step 2: Extract legal principles
+    logger.info("Step 2/5: Extracting legal principles...")
+    principles_raw = extract_legal_principles(text)
+    principles = [LegalPrinciple(**p) for p in principles_raw]
+    
+    # Step 3: Find similar cases
+    logger.info("Step 3/5: Finding similar cases...")
+    similar_results = similarity_engine.search(text, top_k=top_k)
+    similar_cases = [case for case, distance in similar_results]
+    
+    # Step 4: Analyze trends
+    logger.info("Step 4/5: Analyzing trends...")
+    trends_raw = analyze_trends(similar_cases)
+    trends = TrendStats(**trends_raw)
+    
+    # Step 5: Generate recommendation
+    logger.info("Step 5/5: Generating recommendation...")
+    recommendation_raw = generate_recommendation(
+        trends_raw, classification_raw, principles_raw, entities
+    )
+    recommendation = Recommendation(
+        recommendation_ar=recommendation_raw["recommendation_ar"],
+        recommendation_en=recommendation_raw["recommendation_en"],
+        direction=recommendation_raw["direction"],
+        confidence=recommendation_raw["confidence"],
+        disclaimer_ar=recommendation_raw["disclaimer_ar"],
+        disclaimer_en=recommendation_raw["disclaimer_en"],
+        supporting_principles=[
+            SupportingPrinciple(**sp) for sp in recommendation_raw.get("supporting_principles", [])
+        ],
+        based_on_sample_size=recommendation_raw["based_on_sample_size"],
+        reliability=recommendation_raw["reliability"]
+    )
+    
+    return AnalyzeResponse(
+        classification=classification,
+        legal_principles=principles,
+        trends=trends,
+        recommendation=recommendation,
+        entities=entities,
+        text=text
+    )
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 async def analyze_case(request: AnalyzeRequest):
-    """
-    Full legal analysis pipeline:
-    1. Classify case type
-    2. Extract legal principles
-    3. Find similar cases
-    4. Compute trends from similar cases
-    5. Generate recommendation
-    """
+    """API endpoint for full legal analysis."""
     logger.info(f"Full analysis request (Length: {len(request.text)} chars)")
-    
-    if not similarity_engine:
-        raise HTTPException(status_code=503, detail="Engines not initialized")
-    
     try:
-        # Step 0: Extract Entities (Parallel to classification)
-        logger.info("Step 0/5: Extracting entities...")
-        entities = EntityExtractor.extract(request.text)
-
-        # Step 1: Classify case type
-        logger.info("Step 1/5: Classifying case type...")
-        classification_raw = classify_case(request.text)
-        classification = CaseClassification(
-            case_type=classification_raw["case_type"],
-            name_ar=classification_raw["name_ar"],
-            name_en=classification_raw["name_en"],
-            confidence=classification_raw["confidence"],
-            matched_keywords=classification_raw["matched_keywords"],
-            sub_types=[SubType(**st) for st in classification_raw.get("sub_types", [])]
-        )
-        logger.info(f"   → {classification.name_ar} ({classification.name_en}) [{classification.confidence}]")
-        
-        # Step 2: Extract legal principles
-        logger.info("Step 2/5: Extracting legal principles...")
-        principles_raw = extract_legal_principles(request.text)
-        principles = [LegalPrinciple(**p) for p in principles_raw]
-        logger.info(f"   → Found {len(principles)} principles")
-        
-        # Step 3: Find similar cases for trend analysis
-        logger.info("Step 3/5: Finding similar cases for trend analysis...")
-        similar_results = similarity_engine.search(request.text, top_k=request.top_k)
-        similar_cases = [case for case, distance in similar_results]
-        logger.info(f"   → Found {len(similar_cases)} similar cases")
-        
-        # Step 4: Analyze trends from similar cases
-        logger.info("Step 4/5: Analyzing precedent trends...")
-        trends_raw = analyze_trends(similar_cases)
-        trends = TrendStats(**trends_raw)
-        logger.info(f"   → Win rate: {trends.plaintiff_win_rate}%, Reliability: {trends.reliability}")
-        
-        # Step 5: Generate recommendation
-        logger.info("Step 5/5: Generating recommendation...")
-        recommendation_raw = generate_recommendation(
-            trends_raw, classification_raw, principles_raw, entities
-        )
-        recommendation = Recommendation(
-            recommendation_ar=recommendation_raw["recommendation_ar"],
-            recommendation_en=recommendation_raw["recommendation_en"],
-            direction=recommendation_raw["direction"],
-            confidence=recommendation_raw["confidence"],
-            disclaimer_ar=recommendation_raw["disclaimer_ar"],
-            disclaimer_en=recommendation_raw["disclaimer_en"],
-            supporting_principles=[
-                SupportingPrinciple(**sp) for sp in recommendation_raw.get("supporting_principles", [])
-            ],
-            based_on_sample_size=recommendation_raw["based_on_sample_size"],
-            reliability=recommendation_raw["reliability"]
-        )
-        logger.info(f"   → Direction: {recommendation.direction}, Confidence: {recommendation.confidence}")
-        
-        logger.info("✅ Full analysis complete.")
-        
-        return AnalyzeResponse(
-            classification=classification,
-            legal_principles=principles,
-            trends=trends,
-            recommendation=recommendation,
-            entities=entities
-        )
-        
+        return await execute_full_analysis(request.text, request.top_k)
     except Exception as e:
         logger.error(f"Analysis FAILED: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -442,11 +431,17 @@ async def chat(request: ChatRequest):
         analysis_dict = request.analysis_data.dict() if request.analysis_data else None
         
         # Process message through chat engine
-        response = chat_engine.process_message(
+        response = await chat_engine.process_message(
             user_message=request.message,
             analysis_data=analysis_dict,
             case_text=request.case_text
         )
+        
+        # Log translation for debugging
+        if "user_translation" in response:
+            logger.info(f"User translation generated: {response['user_translation'][:50]}...")
+        else:
+            logger.warning("No user translation generated for this message.")
         
         logger.info(f"Detected intent: {response.get('intent')}")
         logger.info(f"Response text (first 50 chars): {response['text'][:50]}...")
@@ -462,6 +457,8 @@ async def chat(request: ChatRequest):
             intent=response["intent"],
             suggested_actions=suggested_actions,
             timestamp=datetime.now().isoformat(),
+            user_translation=response.get("user_translation"),
+            citations=response.get("citations", []),
             metadata=response.get("metadata", {}),
             error=response.get("error")
         )
