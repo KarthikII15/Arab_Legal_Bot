@@ -160,3 +160,11 @@ class ConversationSummary(BaseModel):
     has_analysis: bool
     message_count: int
     analysis_keys: List[str] = []
+
+class ArchiveRequest(BaseModel):
+    conversation_id: str
+    title: str
+    preview: Optional[str] = None
+    timestamp: Optional[str] = None
+    messages: Optional[List[ChatMessage]] = None
+

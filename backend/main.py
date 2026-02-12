@@ -26,7 +26,7 @@ from models import (
     AnalyzeRequest, AnalyzeResponse, CaseClassification,
     LegalPrinciple, TrendStats, Recommendation, SubType, SupportingPrinciple,
     DraftRequest, DraftResponse, QueryRequest, QueryResponse,
-    ChatRequest, ChatResponse, ChatMessage, SuggestedAction, ClearChatRequest, ConversationSummary
+    ChatRequest, ChatResponse, ChatMessage, SuggestedAction, ClearChatRequest, ConversationSummary, ArchiveRequest
 )
 from data_loader import load_cases
 from similarity_engine import SimilarityEngine
@@ -513,6 +513,38 @@ async def clear_chat(request: ClearChatRequest):
         return {"status": "cleared", "message": "Chat history cleared successfully"}
     except Exception as e:
         logger.error(f"Clear chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/conversations/archive")
+async def archive_conversation(request: ArchiveRequest):
+    """Archive a conversation to persistent storage."""
+    try:
+        archive_file = "conversations_archive.json"
+        
+        # Load existing
+        archives = []
+        if os.path.exists(archive_file):
+            with open(archive_file, "r", encoding="utf-8") as f:
+                try:
+                    archives = json.load(f)
+                except:
+                    archives = []
+        
+        # Add new archive
+        entry = request.dict()
+        entry["archived_at"] = datetime.now().isoformat()
+        archives.append(entry)
+        
+        # Save
+        with open(archive_file, "w", encoding="utf-8") as f:
+            json.dump(archives, f, ensure_ascii=False, indent=2)
+            
+        logger.info(f"Archived conversation {request.conversation_id}")
+        return {"status": "success", "message": "Conversation archived successfully"}
+        
+    except Exception as e:
+        logger.error(f"Archive error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

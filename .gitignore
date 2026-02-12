@@ -100,3 +100,25 @@ SAME_RESPONSE_FIX.md
 TESTING_GUIDE.md
 DEBUG.md
 DEBUG_*.md
+
+# Persistence
+backend/conversations_archive.json
+
+# Generated Reports
+*.pdf
+
+# Agent Artifacts & Documentation
+task.md
+walkthrough.md
+walkthrough_*.md
+implementation_plan*.md
+ui_verification_report.md
+AUDIT_SUMMARY.md
+CRITICAL_ISSUES_CHECKLIST.md
+DELIVERABLES_SUMMARY.md
+EXECUTIVE_SUMMARY.md
+FILES_DIRECTORY_GUIDE.md
+IMPLEMENTATION_GUIDE.md
+LAYOUT_WIREFRAMES_GUIDE.md
+PHASE_2_*.md
+
