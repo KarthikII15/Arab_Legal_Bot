@@ -40,7 +40,7 @@ def download_models():
     model.save_pretrained(llm_path)
     print(f"Saved LLM to {llm_path}")
     
-    print("\n✅ All models downloaded successfully for offline use.")
+    print("\n All models downloaded successfully for offline use.")
 
 if __name__ == "__main__":
     download_models()

@@ -1,4 +1,4 @@
-# 🎨 UI/UX Enhancement Roadmap
+#  UI/UX Enhancement Roadmap
 ## Arabic Legal Assistant - Production-Ready Design System
 
 **Document Version:** 1.0  
@@ -90,10 +90,10 @@ Caption: 10px / 400 weight / 1.3 line-height
 Instead of Material UI or Tailwind alone, implement a **Hybrid Approach**:
 
 ```
-✓ Use Tailwind CSS for utility-first rapid development
-✓ Layer custom components on top for legal-specific UI
-✓ Shadcn/UI components for complex interactions (tabs, modals)
-✓ Custom CSS for micro-interactions and animations
+ Use Tailwind CSS for utility-first rapid development
+ Layer custom components on top for legal-specific UI
+ Shadcn/UI components for complex interactions (tabs, modals)
+ Custom CSS for micro-interactions and animations
 
 Recommended Installation:
 npm install -D tailwindcss postcss autoprefixer
@@ -103,16 +103,16 @@ npm install clsx class-variance-authority
 
 #### Core Components Library
 ```
-✓ Badge (for case status, tags)
-✓ Button (primary, secondary, ghost, loading states)
-✓ Card (case summaries, citations)
-✓ Input (text, rich text, file upload)
-✓ Modal (dialogs, confirmations)
-✓ Sidebar (conversation history, navigation)
-✓ Tabs (different analysis views)
-✓ Toast (notifications)
-✓ Skeleton (loading placeholders)
-✓ Popover (source citations, tooltips)
+ Badge (for case status, tags)
+ Button (primary, secondary, ghost, loading states)
+ Card (case summaries, citations)
+ Input (text, rich text, file upload)
+ Modal (dialogs, confirmations)
+ Sidebar (conversation history, navigation)
+ Tabs (different analysis views)
+ Toast (notifications)
+ Skeleton (loading placeholders)
+ Popover (source citations, tooltips)
 ```
 
 ---
@@ -131,16 +131,16 @@ npm install clsx class-variance-authority
 │  (Collapse)  │                              │                          │
 │              │  ┌──────────────────────┐   │  ┌──────────────────┐   │
 │ History      │  │ Message 1 (Asst.)    │   │  │ Uploaded Case    │   │
-│ ─────        │  │ ✓ Sources: 3         │   │  │ ─────────────    │   │
+│ ─────        │  │  Sources: 3         │   │  │ ─────────────    │   │
 │ • Case 1     │  │                      │   │  │ Pages: 5         │   │
 │ • Case 2     │  ├──────────────────────┤   │  │ Type: DOCX       │   │
 │ • Case 3     │  │ Message 2 (User)     │   │  │ Keywords: 10     │   │
 │              │  │────────────────────  │   │  │                  │   │
 │ New Chat     │  │ Message 3 (Asst.)    │   │  │ Current Analysis │   │
 │ ├─────────   │  │ [Suggested Actions]  │   │  │ ─────────────    │   │
-│ └─────────   │  │ 📋 Summarize         │   │  │ Classification:  │   │
-│              │  │ 📊 Analyze Trends    │   │  │ Labor Dispute    │   │
-│              │  │ ⚖️ Compare to Cases  │   │  │                  │   │
+│ └─────────   │  │  Summarize         │   │  │ Classification:  │   │
+│              │  │  Analyze Trends    │   │  │ Labor Dispute    │   │
+│              │  │ ️ Compare to Cases  │   │  │                  │   │
 │              │  │                      │   │  │ Related Cases    │   │
 │              │  └──────────────────────┘   │  │ ─────────────    │   │
 │              │                              │  │ • Case 2025-001 │   │
@@ -383,42 +383,42 @@ Welcome Screen Components:
 │              AI-Powered Case Analysis       │
 ├─────────────────────────────────────────────┤
 │                                             │
-│  🎯 Key Capabilities:                       │
+│   Key Capabilities:                       │
 │                                             │
-│  📊 Case Analysis                           │
+│   Case Analysis                           │
 │     Understand legal issues comprehensively │
 │     Extract key facts, claims, counterclaims│
 │                                             │
-│  ⚖️ Legal Classification                    │
+│  ️ Legal Classification                    │
 │     Auto-categorize case type and domain    │
 │     Align with Saudi legal framework        │
 │                                             │
-│  💡 Smart Recommendations                  │
+│   Smart Recommendations                  │
 │     Get evidence-based strategies           │
 │     Based on similar precedents             │
 │                                             │
-│  🔍 Precedent Search                        │
+│   Precedent Search                        │
 │     Find similar cases instantly            │
 │     Compare outcomes and legal principles   │
 │                                             │
 ├─────────────────────────────────────────────┤
 │      Quick Start Actions:                   │
 │                                             │
-│  [📤 Upload Case Document]                 │
+│  [ Upload Case Document]                 │
 │     PDF, DOCX, or TXT format               │
 │     Supports: ملف قضية، شكوى، دفاع         │
 │                                             │
-│  [❓ See Example Queries]                   │
+│  [ See Example Queries]                   │
 │     • What compensation can I claim?        │
 │     • Is this case similar to 2024-001?     │
 │     • What's my best legal strategy?        │
 │                                             │
-│  [📚 Learn About the Assistant]            │
+│  [ Learn About the Assistant]            │
 │     Video tutorial (2 min)                  │
 │     FAQ & documentation                     │
 │                                             │
 ├─────────────────────────────────────────────┤
-│  ✨ Tip: Upload a case to get started       │
+│   Tip: Upload a case to get started       │
 └─────────────────────────────────────────────┘
 ```
 
@@ -452,10 +452,10 @@ Input Area Enhancements:
    └─ /clear        → Clear conversation
 
 4. Quick Action Buttons
-   ├─ [🎙️ Voice Input] - STT integration (future)
-   ├─ [📎 Attach] - File upload
-   ├─ [😊 Emoji] - Sentiment/tone selector
-   └─ [⚙️ Advanced] - Query options
+   ├─ [️ Voice Input] - STT integration (future)
+   ├─ [ Attach] - File upload
+   ├─ [ Emoji] - Sentiment/tone selector
+   └─ [️ Advanced] - Query options
 ```
 
 ### 4.3 Output Quality Features
@@ -467,12 +467,12 @@ Message Action Bar:
 ├──────────────────────────────────┤
 │ Full response text here...        │
 │                                  │
-│ [Copy] [Regenerate] [👍] [👎]    │
+│ [Copy] [Regenerate] [] []    │
 │ [More] [Pin to Context] [Export] │
 └──────────────────────────────────┘
 
 Copy Button Behavior:
-└─ On click: "Copy"  → "✓ Copied!" (2s feedback)
+└─ On click: "Copy"  → " Copied!" (2s feedback)
   └─ Copies formatted text with citations
   └─ Option to copy as markdown, plain text, or formatted
 
@@ -483,15 +483,15 @@ Regenerate Button Behavior:
 └─ Can improve results without re-uploading document
 
 Feedback (Thumbs):
-└─ 👍 Thumbs Up: Marks response as helpful
+└─  Thumbs Up: Marks response as helpful
   └─ Triggers: "What was most helpful?" → stores preference
-└─ 👎 Thumbs Down: Marks response as inadequate
+└─  Thumbs Down: Marks response as inadequate
   └─ Triggers: Feedback form → "What was wrong?"
   └─ Helps improve model responses
 
 Citation Popovers:
 ┌─────────────────────────────────────┐
-│ 📚 Full Legal Citation             │
+│  Full Legal Citation             │
 ├─────────────────────────────────────┤
 │ Source: Saudi Labor Law, Article 52 │
 │                                     │
@@ -559,15 +559,15 @@ Features:
 
 #### Color Contrast Ratios
 ```
-Primary Text on White: #1E293B on #FFFFFF → 13.4:1 ✓ (AAA)
-Secondary Text: #64748B on #FFFFFF → 9.2:1 ✓ (AAA)
-Button Text: White on #6D28D9 → 6.5:1 ✓ (AAA)
-Placeholder Text: #94A3B8 on #FFFFFF → 4.5:1 ✓ (AA)
+Primary Text on White: #1E293B on #FFFFFF → 13.4:1  (AAA)
+Secondary Text: #64748B on #FFFFFF → 9.2:1  (AAA)
+Button Text: White on #6D28D9 → 6.5:1  (AAA)
+Placeholder Text: #94A3B8 on #FFFFFF → 4.5:1  (AA)
 
 Status Colors:
-Success (#10B981) + White text → 5.8:1 ✓ (AA)
-Error (#EF4444) + White text → 5.2:1 ✓ (AA)
-Warning (#F59E0B) + Dark text → 8.1:1 ✓ (AAA)
+Success (#10B981) + White text → 5.8:1  (AA)
+Error (#EF4444) + White text → 5.2:1  (AA)
+Warning (#F59E0B) + Dark text → 8.1:1  (AAA)
 ```
 
 #### Keyboard Navigation
@@ -597,16 +597,16 @@ Focus Indicators:
 
 #### Semantic HTML & ARIA
 ```
-✓ Use native <button>, <input>, <textarea>
-✓ Page structure: <header>, <nav>, <main>, <aside>, <footer>
-✓ Headings: Proper h1 > h2 > h3 hierarchy
-✓ Form labels: <label for="input-id">
-✓ ARIA landmarks: role="main", role="navigation"
-✓ ARIA live regions: aria-live="polite" for status updates
-✓ ARIA labels: aria-label for icon buttons
-✓ Image alt text: All images have descriptive alt
-✓ Language attribute: <html lang="ar" dir="rtl">
-✓ Skip links: [Skip to Main Content]
+ Use native <button>, <input>, <textarea>
+ Page structure: <header>, <nav>, <main>, <aside>, <footer>
+ Headings: Proper h1 > h2 > h3 hierarchy
+ Form labels: <label for="input-id">
+ ARIA landmarks: role="main", role="navigation"
+ ARIA live regions: aria-live="polite" for status updates
+ ARIA labels: aria-label for icon buttons
+ Image alt text: All images have descriptive alt
+ Language attribute: <html lang="ar" dir="rtl">
+ Skip links: [Skip to Main Content]
 ```
 
 #### Screen Reader Announcements
@@ -629,38 +629,38 @@ Citation Available:
 
 #### Desktop (1440px+)
 ```
-✓ Full 3-column layout visible
-✓ Sidebar always visible (280px)
-✓ Tools panel always visible (320px)
-✓ Main chat area expansive (~840px)
-✓ 16px base font size
-✓ Full header with all controls
+ Full 3-column layout visible
+ Sidebar always visible (280px)
+ Tools panel always visible (320px)
+ Main chat area expansive (~840px)
+ 16px base font size
+ Full header with all controls
 ```
 
 #### Tablet (768px - 1280px)
 ```
-✓ 2-column: Chat | Tools (sidebar collapses to icon bar)
-✓ 64px icon-only sidebar (hover expands)
-✓ Tools panel narrows to 280px
-✓ 16px base font size
-✓ Optimized for landscape orientation
+ 2-column: Chat | Tools (sidebar collapses to icon bar)
+ 64px icon-only sidebar (hover expands)
+ Tools panel narrows to 280px
+ 16px base font size
+ Optimized for landscape orientation
 ```
 
 #### Mobile (<768px)
 ```
-✓ Full-width single column
-✓ Bottom tab navigation (History | Chat | Tools)
-✓ Header: Logo | Menu icon | Search
-✓ Each tab swipes in from side
-✓ Full-width input area at bottom
-✓ 14px base font size
-✓ Touch-friendly buttons (min 44px tap target)
-✓ Simplified tools panel (stack vertically)
+ Full-width single column
+ Bottom tab navigation (History | Chat | Tools)
+ Header: Logo | Menu icon | Search
+ Each tab swipes in from side
+ Full-width input area at bottom
+ 14px base font size
+ Touch-friendly buttons (min 44px tap target)
+ Simplified tools panel (stack vertically)
 
 Mobile Navigation Tabs:
-├─ 💬 Chat (default)
-├─ 📚 History
-├─ ⚙️ Tools
+├─  Chat (default)
+├─  History
+├─ ️ Tools
 └─ Settings icon
 ```
 

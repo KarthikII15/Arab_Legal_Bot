@@ -208,4 +208,4 @@ if ISSUES:
     for i in ISSUES:
         print(f"  - {i}")
 else:
-    print("ALL TESTS PASSED! ✅")
+    print("ALL TESTS PASSED! ")

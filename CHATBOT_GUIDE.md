@@ -1,14 +1,14 @@
-# 🤖 Chatbot Conversion Guide
+#  Chatbot Conversion Guide
 
 This document outlines the changes made to convert the Arabic AI Legal Case Analysis Assistant into a conversational chatbot.
 
-## 📋 Overview of Changes
+##  Overview of Changes
 
 The application has been transformed from a **multi-tab analysis interface** into a **conversational chatbot interface**. All the powerful legal analysis features are now accessible through natural conversation.
 
 ---
 
-## 🔧 Backend Changes
+##  Backend Changes
 
 ### 1. **New Chat Engine** (`backend/chat_engine.py`)
 - **ConversationContext**: Manages conversation history and analysis state
@@ -54,7 +54,7 @@ The chat engine is initialized at startup and available for use immediately.
 
 ---
 
-## 🎨 Frontend Changes
+##  Frontend Changes
 
 ### 1. **New Chat UI** (`frontend/src/App.js`)
 - **Conversational Interface**: Messages displayed in a chat-like format
@@ -75,7 +75,7 @@ The chat engine is initialized at startup and available for use immediately.
 
 ---
 
-## 💬 How to Use the Chatbot
+##  How to Use the Chatbot
 
 ### Starting the Application
 
@@ -102,7 +102,7 @@ The bot greets you with options to:
 - Ask questions
 
 #### 2. **Upload a Document**
-- Click the 📁 file button
+- Click the  file button
 - Select a PDF, DOCX, or TXT file
 - The bot automatically analyzes it
 - Full analysis results appear in the chat
@@ -148,11 +148,11 @@ Click "عرض التفاصيل الكاملة" (Show Full Details) to see:
 
 ---
 
-## 🔄 Conversation Flow Example
+##  Conversation Flow Example
 
 ```
 User: "رفع ملف:السعودية.pdf"
-Bot:  [Analyzes file] ✅ تم التحليل
+Bot:  [Analyzes file]  تم التحليل
       → عرض التفاصيل
       → ملخص القضية  
       → توصيات
@@ -169,19 +169,19 @@ Bot:  [Generates legal draft] → يمكنك نسخ النص
 
 ---
 
-## 🎯 Key Features
+##  Key Features
 
-### ✅ Conversational
+###  Conversational
 - Natural language understanding in Arabic & English
 - Context-aware responses
 - Multi-turn conversations
 
-### ✅ Intelligent Routing
+###  Intelligent Routing
 - Automatic intent detection
 - Appropriate handler selection
 - Relevant suggested actions
 
-### ✅ Full Analysis Access
+###  Full Analysis Access
 - All legal analysis features via chat
 - Similarity search
 - Legal principle extraction
@@ -189,14 +189,14 @@ Bot:  [Generates legal draft] → يمكنك نسخ النص
 - Draft generation
 - Recommendation engine
 
-### ✅ Professional Interface
+###  Professional Interface
 - Modern, clean design
 - Fast response times
 - Smooth animations
 - Mobile-responsive
 - RTL support for Arabic
 
-### ✅ Context Management
+###  Context Management
 - Maintains conversation history
 - Remembers analyzed cases
 - Tracks intent throughout conversation
@@ -204,7 +204,7 @@ Bot:  [Generates legal draft] → يمكنك نسخ النص
 
 ---
 
-## 🚀 Advanced Usage
+##  Advanced Usage
 
 ### Clear Conversation
 To start fresh without reloading:
@@ -227,7 +227,7 @@ Analyze different cases in the same session:
 
 ---
 
-## 📊 Architecture Comparison
+##  Architecture Comparison
 
 ### Before (Tab-based Interface)
 ```
@@ -258,7 +258,7 @@ Analyze different cases in the same session:
 
 ---
 
-## 🔌 API Endpoints
+##  API Endpoints
 
 ### Chat Endpoints
 ```
@@ -288,7 +288,7 @@ POST /chat/clear
 
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Chatbot not responding?
 1. Check backend is running: `http://127.0.0.1:5000/health`
@@ -307,12 +307,12 @@ POST /chat/clear
 
 ---
 
-## 📝 Example Conversations
+##  Example Conversations
 
 ### Example 1: Employment Case Analysis
 ```
 User: Upload "employment_dispute.pdf"
-Bot:  ✅ تم تحليل القضية | Employee v. Company
+Bot:   تم تحليل القضية | Employee v. Company
       [Shows classification & statistics]
 
 User: "كم نسبة نجاح الموظف؟"
@@ -320,13 +320,13 @@ Bot:  بناءً على 23 قضية مشابهة، نسبة الفوز: 72%
 
 User: "كتابة لائحة دعوى"
 Bot:  [Generates professional legal claim draft]
-      📋 يمكنك نسخ النص
+       يمكنك نسخ النص
 ```
 
 ### Example 2: Commercial Dispute
 ```
 User: "Analyze this commercial dispute..."
-Bot:  📤 جاري التحليل... ⏳
+Bot:   جاري التحليل... ⏳
 
 User: "What are the legal principles?"
 Bot:  المبادئ القانونية ذات الصلة:
@@ -343,7 +343,7 @@ Bot:  قضايا مشابهة:
 
 ---
 
-## 🎓 For Developers
+##  For Developers
 
 ### Adding New Intents
 Edit `chat_engine.py`, `_initialize_intents()` method:
@@ -369,7 +369,7 @@ Modify handler methods in `ChatEngine` class for:
 
 ---
 
-## ✨ Future Enhancements
+##  Future Enhancements
 
 Potential features to add:
 - Voice input (Arabic speech-to-text)
@@ -381,7 +381,7 @@ Potential features to add:
 
 ---
 
-## 📞 Support
+##  Support
 
 For issues or questions:
 1. Check this guide first
@@ -391,6 +391,6 @@ For issues or questions:
 
 ---
 
-## 🎉 Congratulations!
+##  Congratulations!
 
 Your legal case analysis system is now a conversational chatbot. Users can interact with powerful legal AI features through natural conversation in Arabic and English!

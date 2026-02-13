@@ -458,7 +458,7 @@ if __name__ == "__main__":
     principles = extract_legal_principles(test_text)
     print(f"\nFound {len(principles)} legal principles:\n")
     for p in principles:
-        print(f"  ⚖️ {p['name_ar']} ({p['name_en']})")
+        print(f"  ️ {p['name_ar']} ({p['name_en']})")
         print(f"     Section: {p['source_section']}")
         print(f"     Evidence: {p['evidence'][:100]}...")
         print(f"     Relevance: {p['relevance']}")

@@ -18,7 +18,7 @@ export function ToolsPanel({
     <aside className="app-tools">
       {/* Header */}
       <div className="tools-header">
-        <span className="tools-header-icon">🛠️</span>
+        <span className="tools-header-icon"></span>
         <div className="header-text-stack">
           <span>الأدوات والسياق</span>
           <span className="en-tiny">Tools & Context</span>
@@ -38,8 +38,8 @@ export function ToolsPanel({
               </div>
               <div className="tool-card-body">
                 <div className="tool-info-grid">
-                  <div>📄 النوع | Type: <span className="text-secondary">{uploadedCase.type || 'PDF'}</span></div>
-                  <div>📖 الصفحات | Pages: <span className="text-secondary">{uploadedCase.pages || 'N/A'}</span></div>
+                  <div> النوع | Type: <span className="text-secondary">{uploadedCase.type || 'PDF'}</span></div>
+                  <div> الصفحات | Pages: <span className="text-secondary">{uploadedCase.pages || 'N/A'}</span></div>
                   <div>⏰ تم الرفع | Uploaded: <span className="text-secondary">{uploadedCase.timestamp ? new Date(uploadedCase.timestamp).toLocaleDateString('ar-SA') : 'N/A'}</span></div>
                 </div>
 
@@ -125,7 +125,7 @@ export function ToolsPanel({
         {/* Help Section */}
         <div className="tool-help-section">
           <div className="tool-help-box">
-            <strong>💡 نصيحة | Pro Tip:</strong> استخدم أوامر التشطة (/) أثناء الكتابة للوصول إلى الأدوات بسرعة.
+            <strong> نصيحة | Pro Tip:</strong> استخدم أوامر التشطة (/) أثناء الكتابة للوصول إلى الأدوات بسرعة.
             <div className="en-tiny">Use slash commands (/) for quick tool access while typing.</div>
           </div>
         </div>

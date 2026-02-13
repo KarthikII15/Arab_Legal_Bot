@@ -59,9 +59,9 @@ export const useChatEngine = () => {
     const checkHealth = useCallback(async () => {
         try {
             await axios.get(`${API_BASE}/health`);
-            setHealthStatus("Connected ✅");
+            setHealthStatus("Connected ");
         } catch (err) {
-            setHealthStatus("Disconnected ❌");
+            setHealthStatus("Disconnected ");
         }
     }, []);
 
@@ -81,14 +81,14 @@ export const useChatEngine = () => {
             setCaseText(text);
 
             addAssistantMessage(
-                `تم تحليل النص بنجاح! ✅\n\nنوع القضية: ${response.data.classification.name_ar}\nدرجة الثقة: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\n---\n\nText analyzed successfully! ✅\n\nCase Type: ${response.data.classification.name_en}\nConfidence: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\nيمكنك الآن طرح أسئلة حول القضية.\nYou can now ask questions about the case.`,
+                `تم تحليل النص بنجاح! \n\nنوع القضية: ${response.data.classification.name_ar}\nدرجة الثقة: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\n---\n\nText analyzed successfully! \n\nCase Type: ${response.data.classification.name_en}\nConfidence: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\nيمكنك الآن طرح أسئلة حول القضية.\nYou can now ask questions about the case.`,
                 "case_analyzed",
                 [
-                    { label: "📊 Full Details | عرض التفاصيل الكاملة", action: "show_details" },
-                    { label: "📋 Case Summary | ملخص القضية", action: "case_summary" },
-                    { label: "🔍 Similar Cases | قضايا مشابهة", action: "similar_cases" },
-                    { label: "💡 Recommendations | توصيات", action: "recommendations" },
-                    { label: "⚖️ Legal Principles | المبادئ القانونية", action: "legal_principles" }
+                    { label: " Full Details | عرض التفاصيل الكاملة", action: "show_details" },
+                    { label: " Case Summary | ملخص القضية", action: "case_summary" },
+                    { label: " Similar Cases | قضايا مشابهة", action: "similar_cases" },
+                    { label: " Recommendations | توصيات", action: "recommendations" },
+                    { label: "️ Legal Principles | المبادئ القانونية", action: "legal_principles" }
                 ]
             );
         } catch (error) {
@@ -168,7 +168,7 @@ export const useChatEngine = () => {
     const handleFileUpload = useCallback(async (file) => {
         if (!file) return;
 
-        addUserMessage(`📤 رفع ملف: ${file.name}\nUploading file: ${file.name}`);
+        addUserMessage(` رفع ملف: ${file.name}\nUploading file: ${file.name}`);
         setLoading(true);
 
         const formData = new FormData();
@@ -190,11 +190,11 @@ export const useChatEngine = () => {
             }
 
             addAssistantMessage(
-                `تم تحليل الملف بنجاح! ✅\n\nنوع القضية: ${response.data.classification.name_ar}\nدرجة الثقة: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\n---\n\nFile analyzed successfully! ✅\n\nCase Type: ${response.data.classification.name_en}\nConfidence: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\nيمكنك الآن طرح أسئلة حول القضية.\nYou can now ask questions about the case.`,
+                `تم تحليل الملف بنجاح! \n\nنوع القضية: ${response.data.classification.name_ar}\nدرجة الثقة: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\n---\n\nFile analyzed successfully! \n\nCase Type: ${response.data.classification.name_en}\nConfidence: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\nيمكنك الآن طرح أسئلة حول القضية.\nYou can now ask questions about the case.`,
                 "file_analyzed",
                 [
-                    { label: "📊 Full Details | عرض التفاصيل الكاملة", action: "show_details" },
-                    { label: "📋 Case Summary | ملخص القضية", action: "case_summary" }
+                    { label: " Full Details | عرض التفاصيل الكاملة", action: "show_details" },
+                    { label: " Case Summary | ملخص القضية", action: "case_summary" }
                 ]
             );
 

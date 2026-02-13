@@ -1,134 +1,144 @@
-import torch
-from transformers import pipeline
 import logging
 import os
 
+import torch
+from transformers import TextIteratorStreamer, pipeline
+
 logger = logging.getLogger(__name__)
 
+
 class LocalLLM:
-    def __init__(self, model_id="Qwen/Qwen2.5-1.5B-Instruct"):
-        # Check if model exists locally in models/llm
+    def __init__(self, model_id: str = "Qwen/Qwen2.5-1.5B-Instruct"):
         local_path = os.path.join(os.path.dirname(__file__), "models", "llm")
-        if os.path.exists(local_path):
+        if os.path.isdir(local_path):
             self.model_id = local_path
             logger.info(f"Using local LLM path: {self.model_id}")
         else:
             self.model_id = model_id
             logger.info(f"Local path not found, using model ID: {self.model_id}")
-            
+
         self.pipeline = None
-        self.tokenizer = None
-        
+        self.max_new_tokens = int(os.getenv("LLM_MAX_NEW_TOKENS", "128"))
+        self.max_input_tokens = int(os.getenv("LLM_MAX_INPUT_TOKENS", "1536"))
+        self.num_threads = int(os.getenv("LLM_NUM_THREADS", "4"))
+
     def load_model(self):
-        """Loads the model if not already loaded."""
-        if self.pipeline:
+        """Load model once and reuse it."""
+        if self.pipeline is not None:
             return
 
         logger.info(f"Loading local LLM: {self.model_id}...")
         try:
-            # CPU Optimization: Lockdown to 4 threads for stable event loop concurrency
-            torch.set_num_threads(4)
-            
-            # Determine device
+            torch.set_num_threads(self.num_threads)
+
             device = "cuda" if torch.cuda.is_available() else "cpu"
             logger.info(f"Using device: {device}")
-            
-            # Use pipeline for simplicity
-            torch_dtype = torch.float16 if device == "cuda" else torch.float32
-            
-            # Optimized model loading
+
+            dtype = torch.float16 if device == "cuda" else torch.float32
+            local_files_only = os.path.isdir(self.model_id)
+
             self.pipeline = pipeline(
                 "text-generation",
                 model=self.model_id,
                 device_map="auto" if device == "cuda" else None,
-                torch_dtype=torch_dtype,
-                model_kwargs={"low_cpu_mem_usage": True}
+                dtype=dtype,
+                model_kwargs={"low_cpu_mem_usage": True},
+                local_files_only=local_files_only,
             )
-            logger.info("Local LLM loaded successfully with 4 threads.")
-            
+            gen_cfg = self.pipeline.model.generation_config
+            gen_cfg.do_sample = False
+            gen_cfg.temperature = 1.0
+            gen_cfg.top_p = 1.0
+            gen_cfg.top_k = 50
+            logger.info(f"Local LLM loaded successfully with {self.num_threads} threads.")
         except Exception as e:
             logger.error(f"Failed to load Local LLM: {e}")
-            # Fallback or re-raise? Re-raise to let caller handle it
-            raise e
+            raise
 
-    async def generate_stream(self, prompt: str, system_prompt: str = None, max_new_tokens=1024):
-        """
-        Asynchronous generator for streaming tokens from the LLM.
-        """
-        if not self.pipeline:
-            self.load_model()
-            
-        from transformers import TextIteratorStreamer
-        from threading import Thread
-        
+    def _build_inputs(self, prompt: str, system_prompt: str = None):
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
-        
-        # Build the inputs
-        input_ids = self.pipeline.tokenizer.apply_chat_template(
-            messages, 
-            tokenize=True, 
-            add_generation_prompt=True, 
-            return_tensors="pt"
-        ).to(self.pipeline.device)
-        
+
+        tokenized = self.pipeline.tokenizer.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_tensors="pt",
+        )
+
+        # Some tokenizer versions return a BatchEncoding, others return a Tensor.
+        if hasattr(tokenized, "input_ids"):
+            input_ids = tokenized.input_ids
+        elif isinstance(tokenized, dict):
+            input_ids = tokenized.get("input_ids")
+        else:
+            input_ids = tokenized
+
+        if input_ids is None:
+            raise RuntimeError("Tokenizer output does not contain input_ids")
+
+        input_ids = input_ids.to(self.pipeline.device)
+
+        if input_ids.shape[-1] > self.max_input_tokens:
+            input_ids = input_ids[:, -self.max_input_tokens :]
+        attention_mask = torch.ones_like(input_ids, device=input_ids.device)
+        return input_ids, attention_mask
+
+    async def generate_stream(self, prompt: str, system_prompt: str = None, max_new_tokens: int = None):
+        if not self.pipeline:
+            self.load_model()
+
+        from threading import Thread
+
+        input_ids, attention_mask = self._build_inputs(prompt, system_prompt)
+        token_limit = max_new_tokens if max_new_tokens is not None else self.max_new_tokens
+
         streamer = TextIteratorStreamer(self.pipeline.tokenizer, skip_prompt=True, skip_special_tokens=True)
-        
         generation_kwargs = dict(
             input_ids=input_ids,
+            attention_mask=attention_mask,
             streamer=streamer,
-            max_new_tokens=max_new_tokens,
-            do_sample=False, # DETERMINISTIC FOR CPU SPEED
+            max_new_tokens=token_limit,
+            do_sample=False,
             use_cache=True,
-            temperature=None,
-            top_p=None
+            num_return_sequences=1,
+            pad_token_id=self.pipeline.tokenizer.eos_token_id,
         )
-        
+
         thread = Thread(target=self.pipeline.model.generate, kwargs=generation_kwargs)
         thread.start()
-        
+
         for new_text in streamer:
             yield new_text
 
-    def generate(self, prompt: str, system_prompt: str = None, max_new_tokens=1024) -> str:
-        """
-        Generates text from the prompt.
-        Handles formatting for Instruct models if needed.
-        """
+    def generate(self, prompt: str, system_prompt: str = None, max_new_tokens: int = None) -> str:
         if not self.pipeline:
             self.load_model()
-            
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        
-        messages.append({"role": "user", "content": prompt})
-        
+
         try:
-            outputs = self.pipeline(
-                messages,
-                max_new_tokens=max_new_tokens,
-                do_sample=False,  # Greedy decoding for speed/stability
+            input_ids, attention_mask = self._build_inputs(prompt, system_prompt)
+            token_limit = max_new_tokens if max_new_tokens is not None else self.max_new_tokens
+            logger.info(
+                "LLM generate called (input_tokens=%s, max_new_tokens=%s)",
+                int(input_ids.shape[-1]),
+                int(token_limit),
+            )
+
+            output_ids = self.pipeline.model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=token_limit,
+                do_sample=False,
                 use_cache=True,
                 num_return_sequences=1,
                 pad_token_id=self.pipeline.tokenizer.eos_token_id,
-                stop_sequences=["نص النظام", "تتضمن اللوائح", "المادة الأولى", "Chapter", "Article"]
             )
-            # Extract the actual generated text
-            # Pipeline returns list of dicts with 'generated_text' which is the messages list + response
-            # Or if text-generation is used with chat template, it returns properly
-            
-            # The pipeline output format depends on version, but typically:
-            generated = outputs[0]["generated_text"]
-            if isinstance(generated, list):
-                # It returns the full conversation. Last message is from assistant
-                return generated[-1]["content"]
-            elif isinstance(generated, str):
-                return generated
-            return str(generated)
-            
+            generated_ids = output_ids[0][input_ids.shape[-1] :]
+            output_text = self.pipeline.tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+            logger.info("LLM generate completed (output_chars=%s)", len(output_text))
+            return output_text
         except Exception as e:
-            logger.error(f"Generation error: {e}")
-            return "عذراً، حدث خطأ أثناء إنشاء النص. (Model generation error)"
+            logger.error("LLM generation error: %r", e, exc_info=True)
+            return "Sorry, a model generation error occurred."

@@ -1247,7 +1247,7 @@ select {
 }
 
 .state-error::before {
-  content: '⚠️';
+  content: '️';
 }
 
 .state-success {
@@ -1256,7 +1256,7 @@ select {
 }
 
 .state-success::before {
-  content: '✓';
+  content: '';
 }
 
 @keyframes pulse-dots {

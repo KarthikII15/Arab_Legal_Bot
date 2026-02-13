@@ -276,7 +276,7 @@ def generate_draft(
         if placeholder in draft_text:
             remaining_placeholders.append(placeholder)
     if remaining_placeholders:
-        logger.warning(f"  ⚠ Draft still contains placeholders: {remaining_placeholders}")
+        logger.warning(f"   Draft still contains placeholders: {remaining_placeholders}")
     
     return {
         "title": title,

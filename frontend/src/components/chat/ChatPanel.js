@@ -37,7 +37,7 @@ const ChatPanel = ({
                     <div key={msg.id} className={`message message-${msg.role} mb-3`}>
                         <div className={`d-flex ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                             <div className="message-avatar mx-2">
-                                {msg.role === 'user' ? '👤' : '⚖️'}
+                                {msg.role === 'user' ? '' : '️'}
                             </div>
                             <div className="message-bubble p-3 rounded"
                                 style={{
@@ -59,7 +59,7 @@ const ChatPanel = ({
                                 {msg.citations && msg.citations.length > 0 && (
                                     <div className="citations-footer mt-3 pt-2 border-top border-secondary-subtle">
                                         <h6 className="small text-muted mb-2" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                            📚 Sources Used | المصادر:
+                                             Sources Used | المصادر:
                                         </h6>
                                         <div className="d-flex flex-wrap gap-2">
                                             {msg.citations.map((cite, idx) => (
@@ -101,7 +101,7 @@ const ChatPanel = ({
                 {loading && (
                     <div className="message message-assistant mb-3">
                         <div className="d-flex flex-row">
-                            <div className="message-avatar mx-2">⚖️</div>
+                            <div className="message-avatar mx-2">️</div>
                             <div className="message-bubble p-3 rounded bg-light">
                                 <div className="typing-indicator">
                                     <span>●</span> <span>●</span> <span>●</span>
@@ -121,7 +121,7 @@ const ChatPanel = ({
                         onClick={() => document.getElementById('chat-file-input').click()}
                         title="Upload File"
                     >
-                        📎
+                        
                     </button>
                     <input
                         type="file"
@@ -147,7 +147,7 @@ const ChatPanel = ({
                         onClick={handleSend}
                         disabled={loading || !inputText.trim()}
                     >
-                        ➤
+                        
                     </button>
                 </div>
             </div>

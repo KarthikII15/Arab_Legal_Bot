@@ -41,21 +41,13 @@ export function Message({
     <div className={`message ${messageClass}`}>
       {/* Avatar */}
       <div className="message-avatar">
-        {isUser ? '👤' : '⚖️'}
+        {isUser ? '' : '️'}
       </div>
 
       {/* Message Content */}
       <div className="message-bubble">
         <div className="message-text">
-          {(!message.content && !isUser) ? (
-            <div className="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          ) : (
-            <ReactMarkdown>{message.content}</ReactMarkdown>
-          )}
+          <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
 
         {/* Translation Block */}
@@ -69,60 +61,60 @@ export function Message({
         )}
 
         {/* Citations */}
-        {message.citations && message.citations.length > 0 && (
+        {message.citations && message.citations.length > 0 && String(message.intent || '').startsWith('draft') && (
           <div className="citations-container">
             {message.citations
-              .filter(citation =>
-                citation.source &&
-                citation.source !== 'N/A' &&
-                citation.article &&
+              .filter(citation => 
+                citation.source && 
+                citation.source !== 'N/A' && 
+                citation.article && 
                 citation.article !== 'N/A' &&
-                citation.text &&
+                citation.text && 
                 citation.text !== 'N/A'
               )
               .length > 0 && (
-                <>
-                  <div className="citations-header">
-                    المصادر | Sources:
-                  </div>
-                  {message.citations
-                    .filter(citation =>
-                      citation.source &&
-                      citation.source !== 'N/A' &&
-                      citation.article &&
-                      citation.article !== 'N/A' &&
-                      citation.text &&
-                      citation.text !== 'N/A'
-                    )
-                    .map((citation, idx) => (
-                      <div
-                        key={idx}
-                        className="citation-card"
-                        style={{ marginBottom: '0.5rem' }}
-                      >
-                        <div className="citation-source">
-                          <span className="citation-badge">
-                            {citation.source ? citation.source.substring(0, 20) : 'Source'}
-                          </span>
-                          {citation.article && (
-                            <span className="citation-article">
-                              المادة {citation.article} | Article {citation.article}
-                            </span>
-                          )}
-                        </div>
-                        <div className="citation-text">
-                          {citation.text}
-                        </div>
-                        {citation.metadata?.judgment && (
-                          <div className="citation-judgment" style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-primary-dark)', borderLeft: '2px solid var(--color-primary)', paddingLeft: '0.5rem' }}>
-                            <strong>المنطوق:</strong> {citation.metadata.judgment}
-                            <div className="en-tiny"><strong>Ruling:</strong> {citation.metadata.judgment_en || 'Refer to translation block'}</div>
-                          </div>
-                        )}
+              <>
+                <div className="citations-header">
+                  المصادر | Sources:
+                </div>
+                {message.citations
+                  .filter(citation => 
+                    citation.source && 
+                    citation.source !== 'N/A' && 
+                    citation.article && 
+                    citation.article !== 'N/A' &&
+                    citation.text && 
+                    citation.text !== 'N/A'
+                  )
+                  .map((citation, idx) => (
+                  <div
+                    key={idx}
+                    className="citation-card"
+                    style={{ marginBottom: '0.5rem' }}
+                  >
+                    <div className="citation-source">
+                      <span className="citation-badge">
+                        {citation.source ? citation.source.substring(0, 20) : 'Source'}
+                      </span>
+                      {citation.article && (
+                        <span className="citation-article">
+                          المادة {citation.article} | Article {citation.article}
+                        </span>
+                      )}
+                    </div>
+                    <div className="citation-text">
+                      {citation.text}
+                    </div>
+                    {citation.metadata?.judgment && (
+                      <div className="citation-judgment" style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-primary-dark)', borderLeft: '2px solid var(--color-primary)', paddingLeft: '0.5rem' }}>
+                        <strong>المنطوق:</strong> {citation.metadata.judgment}
+                        <div className="en-tiny"><strong>Ruling:</strong> {citation.metadata.judgment_en || 'Refer to translation block'}</div>
                       </div>
-                    ))}
-                </>
-              )}
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
 
@@ -156,11 +148,11 @@ export function Message({
             <button
               className="action-button"
               onClick={handleCopy}
-              title={copied ? '✓ تم النسخ | Copied' : 'نسخ | Copy'}
+              title={copied ? 'تم النسخ | Copied' : 'نسخ | Copy'}
             >
               <Copy size={12} className="btn-icon-spacing" />
               <div className="btn-text-stack">
-                <span>{copied ? '✓ تم النسخ' : 'نسخ'}</span>
+                <span>{copied ? 'تم النسخ' : 'نسخ'}</span>
                 <span className="en-tiny">{copied ? 'Copied' : 'Copy'}</span>
               </div>
             </button>

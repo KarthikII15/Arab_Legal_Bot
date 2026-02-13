@@ -1,4 +1,4 @@
-# 🚀 Quick Start - Chatbot Version
+#  Quick Start - Chatbot Version
 
 ## Step 1: Start the Backend
 
@@ -9,10 +9,10 @@ python main.py
 
 **Expected Output:**
 ```
-✅ System ready. All engines loaded successfully.
-   💬 Chat Engine: READY
-   🔍 Similarity Engine: READY
-   📝 Summarizer Engine: READY
+ System ready. All engines loaded successfully.
+    Chat Engine: READY
+    Similarity Engine: READY
+    Summarizer Engine: READY
    ...
 ```
 
@@ -27,10 +27,10 @@ npm start
 
 **Browser will open at:** `http://localhost:3000`
 
-## Step 3: Start Chatting! 💬
+## Step 3: Start Chatting! 
 
 ### Upload a Case:
-1. Click the 📁 button
+1. Click the  button
 2. Select a PDF, DOCX, or TXT file
 3. Bot analyzes automatically
 
@@ -62,16 +62,16 @@ npm start
 
 ## Features Available in Chat
 
-✅ Case Analysis & Classification  
-✅ Similar Case Search  
-✅ Legal Principle Extraction  
-✅ Trend Analysis & Statistics  
-✅ Success Probability  
-✅ Compensation Analysis  
-✅ Legal Draft Generation  
-✅ Multi-turn Conversations  
-✅ Context Memory  
-✅ Bilingual Support (AR/EN)  
+ Case Analysis & Classification  
+ Similar Case Search  
+ Legal Principle Extraction  
+ Trend Analysis & Statistics  
+ Success Probability  
+ Compensation Analysis  
+ Legal Draft Generation  
+ Multi-turn Conversations  
+ Context Memory  
+ Bilingual Support (AR/EN)  
 
 ---
 
@@ -91,7 +91,7 @@ npm install
 
 **Chat not responding?**
 - Check backend is running: http://127.0.0.1:5000/health
-- Should say: "Connected ✅"
+- Should say: "Connected "
 
 ---
 
@@ -100,4 +100,4 @@ npm install
 - **Full Guide:** See `CHATBOT_GUIDE.md` for complete documentation
 - **Original README:** See `README.md` for system architecture
 
-Enjoy your new legal chatbot! 🎉
+Enjoy your new legal chatbot! 

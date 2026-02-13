@@ -24,7 +24,7 @@ const WorkspaceLayout = () => {
             {/* Header */}
             <header className="bg-dark text-white p-2 px-3 d-flex justify-content-between align-items-center shadow-sm" style={{ zIndex: 10 }}>
                 <div className="d-flex align-items-center">
-                    <h5 className="mb-0 me-3 fw-bold">🏛️ AI Legal Workspace</h5>
+                    <h5 className="mb-0 me-3 fw-bold">️ AI Legal Workspace</h5>
                     <span className="badge bg-secondary rounded-pill" style={{ fontSize: '0.7em' }}>BETA</span>
                 </div>
                 <div className="d-flex align-items-center">

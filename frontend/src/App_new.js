@@ -41,9 +41,9 @@ function App() {
   const checkHealth = async () => {
     try {
       const res = await axios.get(`${API_BASE}/health`);
-      setHealthStatus("Connected ✅");
+      setHealthStatus("Connected ");
     } catch (err) {
-      setHealthStatus("Disconnected ❌");
+      setHealthStatus("Disconnected ");
     }
   };
 
@@ -108,7 +108,7 @@ function App() {
   const handleFileUpload = async () => {
     if (!selectedFile) return;
 
-    addUserMessage(`📤 رفع ملف: ${selectedFile.name}\nUploading file: ${selectedFile.name}`);
+    addUserMessage(` رفع ملف: ${selectedFile.name}\nUploading file: ${selectedFile.name}`);
     setLoading(true);
     setSelectedFile(null);
 
@@ -123,7 +123,7 @@ function App() {
       setAnalysis(response.data);
 
       addAssistantMessage(
-        `تم تحليل الملف بنجاح! ✅\n\nنوع القضية: ${response.data.classification.name_ar}\nدرجة الثقة: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\n---\n\nFile analyzed successfully! ✅\n\nCase Type: ${response.data.classification.name_en}\nConfidence: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\nيمكنك الآن طرح أسئلة حول القضية أو...\nYou can now ask questions about the case or...`,
+        `تم تحليل الملف بنجاح! \n\nنوع القضية: ${response.data.classification.name_ar}\nدرجة الثقة: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\n---\n\nFile analyzed successfully! \n\nCase Type: ${response.data.classification.name_en}\nConfidence: ${(response.data.classification.confidence * 100).toFixed(0)}%\n\nيمكنك الآن طرح أسئلة حول القضية أو...\nYou can now ask questions about the case or...`,
         "file_analyzed",
         [
           { label: "عرض التفاصيل الكاملة", action: "show_details" },
@@ -187,7 +187,7 @@ function App() {
       {/* Header */}
       <div className="chat-header">
         <div className="header-content">
-          <h1>🏛️ المساعد القانوني الذكي</h1>
+          <h1>️ المساعد القانوني الذكي</h1>
           <p>AI Legal Assistant v2.0</p>
         </div>
         <button
@@ -203,7 +203,7 @@ function App() {
         {messages.map((msg) => (
           <div key={msg.id} className={`message message-${msg.role}`}>
             <div className="message-avatar">
-              {msg.role === 'user' ? '👤' : '⚖️'}
+              {msg.role === 'user' ? '' : '️'}
             </div>
             <div className="message-content">
               <div className="message-text">
@@ -230,7 +230,7 @@ function App() {
         ))}
         {loading && (
           <div className="message message-assistant">
-            <div className="message-avatar">⚖️</div>
+            <div className="message-avatar">️</div>
             <div className="message-content">
               <div className="typing-indicator">
                 <span></span>
@@ -251,12 +251,12 @@ function App() {
               className="btn-close-modal"
               onClick={() => setShowDetailedView(false)}
             >
-              ✕
+              
             </button>
             
             {/* Classification */}
             <div className="detail-card">
-              <h5 className="detail-title">🏷️ تصنيف القضية</h5>
+              <h5 className="detail-title">️ تصنيف القضية</h5>
               <p><strong>{analysis.classification.name_ar}</strong></p>
               <p className="text-muted">{analysis.classification.name_en}</p>
               <p className="small">درجة الثقة: {(analysis.classification.confidence * 100).toFixed(0)}%</p>
@@ -265,7 +265,7 @@ function App() {
             {/* Trends */}
             {analysis.trends && (
               <div className="detail-card">
-                <h5 className="detail-title">📊 الإحصائيات</h5>
+                <h5 className="detail-title"> الإحصائيات</h5>
                 <div className="row">
                   <div className="col-6">
                     <p className="stat-label">نسبة فوز المدعي</p>
@@ -282,7 +282,7 @@ function App() {
             {/* Recommendation */}
             {analysis.recommendation && (
               <div className="detail-card">
-                <h5 className="detail-title">💡 التوصية</h5>
+                <h5 className="detail-title"> التوصية</h5>
                 <p>{analysis.recommendation.recommendation_ar}</p>
                 <p className="small text-muted mt-2">Confidence: {(analysis.recommendation.confidence * 100).toFixed(0)}%</p>
               </div>
@@ -306,7 +306,7 @@ function App() {
             onClick={() => document.getElementById("file-input").click()}
             title="رفع ملف"
           >
-            📁
+            
           </button>
           
           {selectedFile && (
@@ -315,7 +315,7 @@ function App() {
               onClick={handleFileUpload}
               disabled={loading}
             >
-              ✓ {selectedFile.name}
+               {selectedFile.name}
             </button>
           )}
         </div>
@@ -336,7 +336,7 @@ function App() {
             disabled={loading || !inputText.trim()}
             title="إرسال"
           >
-            ➤
+            
           </button>
         </div>
       </div>

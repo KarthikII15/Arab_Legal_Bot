@@ -3,6 +3,10 @@ import logging
 import warnings
 import json
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # --- Log Cleaning Setup ---
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3" 
@@ -11,16 +15,30 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper()),
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S"
 )
 logger = logging.getLogger(__name__)
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+# Server config
+HOST = os.getenv("HOST", "127.0.0.1")
+PORT = int(os.getenv("PORT", 5000))
+RELOAD = os.getenv("RELOAD", "true").lower() == "true"
+
+# Model config
+MODEL_PATH = os.getenv("MODEL_PATH", "./models/similarity_model")
+TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", 300))
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+import asyncio # For robust async/await checking
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from typing import List
 from models import (
     Case, SimilarityRequest, SimilarCaseResult, RelatedCase,
@@ -45,14 +63,55 @@ from chat_engine import ChatEngine
 
 app = FastAPI(title="Arabic AI Legal Case Analysis Assistant", version="2.0.0")
 
+# CORS configuration from environment
+CORS_ORIGINS = os.getenv(
+    "CORS_ORIGINS", 
+    "http://localhost:3000,http://127.0.0.1:3000"
+).split(",")
+
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+IS_PRODUCTION = ENVIRONMENT == "production"
+
 # Allow CORS for React Frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=not IS_PRODUCTION,  # Don't allow credentials in production
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  #  Restrict to needed methods
+    allow_headers=["Content-Type", "Authorization"],  #  Restrict headers
 )
+
+logger.info(f"CORS enabled for: {CORS_ORIGINS}")
+logger.info(f"Environment: {ENVIRONMENT}")
+
+# --- Rate Limiter Setup ---
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── Global Exception Handler ──────────────────────────────────────────
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    """Catch all unhandled exceptions and return safe error messages."""
+    
+    # Log full details server-side (for debugging)
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    
+    # Return safe error to client (no stack trace)
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail}
+        )
+    
+    # Generic safe message for unexpected errors
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "An internal error occurred. Please try again or contact support.",
+            "error_type": exc.__class__.__name__  # Only class name, not full stack
+        }
+    )
 
 # Global engines & data
 similarity_engine = None
@@ -85,20 +144,23 @@ async def startup_event():
         chat_engine = ChatEngine()
         # Inject analysis capability into chat engine
         chat_engine.set_analyzer(execute_full_analysis)
+
+        # Preload local LLM during startup to avoid first-chat cold start delays
+        if getattr(chat_engine, "llm", None):
+            logger.info("Preloading local LLM at startup...")
+            try:
+                await asyncio.to_thread(chat_engine.llm.load_model)
+            except Exception as preload_error:
+                logger.warning(f"LLM preload skipped due to error: {preload_error}")
         
-        # Pre-load LLM weights (Optimization Strategy)
-        if chat_engine.llm:
-            logger.info("Pre-loading LLM weights into memory...")
-            chat_engine.llm.load_model()
-        
-        logger.info("✅ System ready. All engines loaded successfully.")
-        logger.info("   🔍 Similarity Engine: READY")
-        logger.info("   📝 Summarizer Engine: READY")
-        logger.info("   💬 Chat Engine: READY")
-        logger.info("   🏷️ Classification Engine: READY")
-        logger.info("   ⚖️ Legal Principles Engine: READY")
-        logger.info("   📊 Trend Analyzer: READY")
-        logger.info("   💡 Recommendation Engine: READY")
+        logger.info(" System ready. All engines loaded successfully.")
+        logger.info("   Similarity Engine: READY")
+        logger.info("    Summarizer Engine: READY")
+        logger.info("    Chat Engine: READY")
+        logger.info("   ️ Classification Engine: READY")
+        logger.info("   ️ Legal Principles Engine: READY")
+        logger.info("    Trend Analyzer: READY")
+        logger.info("   Recommendation Engine: READY")
     except Exception as e:
         logger.error(f"CRITICAL STARTUP ERROR: {e}", exc_info=True)
 
@@ -112,6 +174,7 @@ async def health_check():
             "similarity": similarity_engine is not None,
             "summarizer": summarizer_engine is not None,
             "chat": chat_engine is not None,
+            "llm_loaded": bool(getattr(getattr(chat_engine, "llm", None), "pipeline", None)),
             "classification": True,
             "legal_principles": True,
             "trend_analyzer": True,
@@ -123,14 +186,15 @@ async def health_check():
 # ── Similarity Endpoint ───────────────────────────────────────────────
 
 @app.post("/similar", response_model=List[SimilarCaseResult])
-async def find_similar_cases(request: SimilarityRequest):
-    logger.info(f"Similarity request: {request.text[:50]}...")
+@limiter.limit("20/minute")
+async def find_similar_cases(request: Request, sim_req: SimilarityRequest):
+    logger.info(f"Similarity request: {sim_req.text[:50]}...")
     if not similarity_engine:
         raise HTTPException(status_code=503, detail="Similarity engine not initialized")
         
     try:
         import math
-        results = similarity_engine.search(request.text, top_k=request.top_k)
+        results = similarity_engine.search(sim_req.text, top_k=sim_req.top_k)
         
         response = []
         for case, distance in results:
@@ -148,25 +212,26 @@ async def find_similar_cases(request: SimilarityRequest):
         return response
     except Exception as e:
         logger.error(f"Similarity error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to find similar cases. Please try again.")
 
 
 # ── Summarize Endpoint ────────────────────────────────────────────────
 
 @app.post("/summarize", response_model=SummarizeResponse)
-async def summarize_case(request: SummarizeRequest):
-    logger.info(f"Summarization request (Length: {len(request.text)} chars)")
+@limiter.limit("20/minute")
+async def summarize_case(request: Request, sum_req: SummarizeRequest):
+    logger.info(f"Summarization request (Length: {len(sum_req.text)} chars)")
     
     if not summarizer_engine:
         raise HTTPException(status_code=503, detail="Summarizer engine not initialized")
          
     try:
-        summary_result = summarizer_engine.summarize(request.text)
+        summary_result = summarizer_engine.summarize(sum_req.text)
         logger.info(f"Extractive summary complete. Confidence: {summary_result.confidence}")
         return summary_result
     except Exception as e:
         logger.error(f"Summarization FAILED: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to summarize text. Please try again.")
 
 
 async def execute_full_analysis(text: str, top_k: int = 5) -> AnalyzeResponse:
@@ -248,55 +313,84 @@ async def execute_full_analysis(text: str, top_k: int = 5) -> AnalyzeResponse:
     )
 
 @app.post("/analyze", response_model=AnalyzeResponse)
-async def analyze_case(request: AnalyzeRequest):
+@limiter.limit("5/minute")
+async def analyze_case(request: Request, analyze_req: AnalyzeRequest):
     """API endpoint for full legal analysis."""
-    logger.info(f"Full analysis request (Length: {len(request.text)} chars)")
+    logger.info(f"Full analysis request (Length: {len(analyze_req.text)} chars)")
     try:
-        return await execute_full_analysis(request.text, request.top_k)
+        return await execute_full_analysis(analyze_req.text, analyze_req.top_k)
     except Exception as e:
         logger.error(f"Analysis FAILED: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to run full analysis. Please try again.")
 
 
 # ── Legal Draft Endpoint (NEW) ────────────────────────────────────────
 
 @app.post("/draft", response_model=DraftResponse)
-async def generate_legal_draft_endpoint(request: DraftRequest):
+@limiter.limit("5/minute")
+async def generate_legal_draft_endpoint(request: Request, draft_req: DraftRequest):
     """
     Generate a legal draft (Claim/Defense) based on analysis data.
     """
-    logger.info(f"Draft request for {request.case_type} ({request.party_role})")
+    logger.info(f"Draft request for {draft_req.case_type} ({draft_req.party_role})")
     try:
         from draft_engine import generate_draft
-        draft = generate_draft(
-            case_type=request.case_type,
-            classification_confidence=request.classification_confidence,
-            legal_principles=[p.dict() for p in request.legal_principles], 
-            recommendation=request.recommendation.dict(),
-            party_role=request.party_role,
-            entities=request.entities # NEW
-        )
+        
+        # Robust check: if generate_draft is async, await it. If sync, call directly.
+        if asyncio.iscoroutinefunction(generate_draft):
+            try:
+                # Add a timeout for safety
+                draft = await asyncio.wait_for(
+                    generate_draft(
+                        case_type=draft_req.case_type,
+                        classification_confidence=draft_req.classification_confidence,
+                        legal_principles=[p.dict() for p in draft_req.legal_principles], 
+                        recommendation=draft_req.recommendation.dict(),
+                        party_role=draft_req.party_role,
+                        entities=draft_req.entities
+                    ),
+                    timeout=TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                logger.error("Draft generation timed out")
+                raise HTTPException(status_code=504, detail="Draft generation timed out")
+        else:
+            # Synchronous call
+            draft = generate_draft(
+                case_type=draft_req.case_type,
+                classification_confidence=draft_req.classification_confidence,
+                legal_principles=[p.dict() for p in draft_req.legal_principles], 
+                recommendation=draft_req.recommendation.dict(),
+                party_role=draft_req.party_role,
+                entities=draft_req.entities
+            )
+            
+        logger.info(f"Draft generated successfully for {request.case_type}")
         return draft
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Draft generation failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Draft FAILED: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate draft. Please check your input.")
 
 
 # ── Interactive Query Endpoint (NEW) ──────────────────────────────────
 
 @app.post("/query", response_model=QueryResponse)
-async def process_user_query(request: QueryRequest):
+@limiter.limit("20/minute")
+async def process_user_query(request: Request, query_req: QueryRequest):
     """
     Process a structured user query based on existing analysis.
     """
-    logger.info(f"Query request: {request.query_type}")
+    logger.info(f"Query request: {query_req.query_type}")
     try:
         from query_engine import process_query
-        response = process_query(request.query_type, request.analysis_data)
+        response = process_query(query_req.query_type, query_req.analysis_data)
         return response
     except Exception as e:
         logger.error(f"Query processing failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to process query. Please try again.")
 
 
 
@@ -304,7 +398,8 @@ async def process_user_query(request: QueryRequest):
 # ── Document Upload Endpoint ──────────────────────────────────────────
 
 @app.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
+@limiter.limit("2/minute")
+async def upload_document(request: Request, file: UploadFile = File(...)):
     """
     Upload a document (PDF, DOCX, TXT) and extract its text.
     """
@@ -357,20 +452,18 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 @app.post("/upload-analyze", response_model=AnalyzeResponse)
-async def upload_analyze_document(file: UploadFile = File(...)):
+@limiter.limit("5/minute")
+async def upload_analyze_document(request: Request, file: UploadFile = File(...)):
     """
     Upload a document and immediately run the full analysis pipeline.
     """
     # 1. Extract text
-    upload_result = await upload_document(file)
+    upload_result = await upload_document(request, file)
     text = upload_result["text"]
     
     # 2. Run analysis
-    # Construct AnalyzeRequest
-    analyze_req = AnalyzeRequest(text=text, top_k=5)
-    
-    # Call analyze_case directly
-    return await analyze_case(analyze_req)
+    # Call execute_full_analysis directly to avoid rate limit double-counting and request arg issues
+    return await execute_full_analysis(text, top_k=5)
 
 
 # ── Analytics Endpoint (Dataset-wide Statistics) ──────────────────────
@@ -433,11 +526,12 @@ async def get_analytics():
 
 # ── Chat Endpoint (NEW - Chatbot Interface) ───────────────────────────
 
-@app.post("/chat")
-async def chat(request: ChatRequest):
+@app.post("/chat", response_model=ChatResponse)
+@limiter.limit("10/minute")
+async def chat(request: Request, chat_req: ChatRequest):
     """
     Main chat endpoint for conversational interactions.
-    Now supports streaming for enhanced user experience.
+    Accepts user messages and optional analysis context.
     """
     global chat_engine
     
@@ -445,18 +539,49 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=503, detail="Chat engine not initialized")
     
     try:
-        logger.info(f"Chat request (streaming): {request.message[:50]}...")
+        logger.info(f"Chat request: {chat_req.message[:50]}...")
+        logger.info(f"Message length: {len(chat_req.message)}, Has analysis: {chat_req.analysis_data is not None}")
         
         # Convert analysis_data if provided
-        analysis_dict = request.analysis_data.dict() if request.analysis_data else None
+        analysis_dict = chat_req.analysis_data.dict() if chat_req.analysis_data else None
         
-        return StreamingResponse(
-            chat_engine.process_message_stream(
-                user_message=request.message,
-                analysis_data=analysis_dict,
-                case_text=request.case_text
-            ),
-            media_type="text/event-stream"
+        # Process message through chat engine
+        response = await chat_engine.process_message(
+            user_message=chat_req.message,
+            analysis_data=analysis_dict,
+            case_text=chat_req.case_text
+        )
+        
+        # Log translation for debugging
+        if "user_translation" in response:
+            logger.info(f"User translation generated: {response['user_translation'][:50]}...")
+        else:
+            logger.warning("No user translation generated for this message.")
+        
+        logger.info(f"Detected intent: {response.get('intent')}")
+        logger.info(f"Response text (first 50 chars): {response['text'][:50]}...")
+        
+        # Convert response to ChatResponse model
+        suggested_actions = [
+            SuggestedAction(**action) if isinstance(action, dict) else action
+            for action in response.get("suggested_actions", [])
+        ]
+        intent_value = response.get("intent", "")
+        citations = response.get("citations", [])
+        if not str(intent_value).startswith("draft"):
+            citations = []
+        
+        return ChatResponse(
+            text=response["text"],
+            intent=intent_value,
+            suggested_actions=suggested_actions,
+            timestamp=datetime.now().isoformat(),
+            user_translation=response.get("user_translation"),
+            assistant_translation=response.get("assistant_translation"),
+            citations=citations,
+            metadata=response.get("metadata", {}),
+            analysis_data=response.get("analysis_data"),
+            error=response.get("error")
         )
         
     except Exception as e:
@@ -541,7 +666,7 @@ async def archive_conversation(request: ArchiveRequest):
         
     except Exception as e:
         logger.error(f"Archive error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to archive conversation. Please try again.")
 
 
 if __name__ == "__main__":

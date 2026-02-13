@@ -1,18 +1,18 @@
 # Arabic AI Legal Case Analysis Assistant
 
-## 🚀 Overview
+##  Overview
 This project is an AI-powered legal assistant specialized in analyzing Arabic legal cases (Saudi Law). It provides:
 - **Case Analysis**: Classification, Legal Principles, Trends, and Recommendations.
 - **Interactive Query Panel**: Ask specific questions (Outcome, Compensation, etc.) deterministically.
 - **Draft Generation**: Auto-generate Plaintiff Claims (`لائحة دعوى`) or Defendant Memos (`مذكرة دفاع`).
 - **Document Upload**: Support for PDF, DOCX, and TXT files.
 
-## 🛠 Prerequisites
+##  Prerequisites
 - Python 3.10+
 - Node.js & npm
 - Tesseract OCR (Optional, for scanned PDFs)
 
-## 📦 Installation
+##  Installation
 
 ### 1. Backend Setup
 ```bash
@@ -28,7 +28,7 @@ cd frontend
 npm install
 ```
 
-## 🏃‍♂️ How to Run
+## ‍️ How to Run
 
 ### Step 1: Start Backend (Port 5000)
 ```bash
@@ -44,14 +44,14 @@ npm start
 ```
 *The application will open at `http://localhost:3000`.*
 
-## 🧪 Verification
+##  Verification
 To verify the system is working correctly, run the workflow test:
 ```bash
 cd backend
 python test_workflow.py
 ```
 
-## 📂 Project Structure
+##  Project Structure
 - `backend/main.py`: Main API server (FastAPI)
 - `backend/engines/`: AI Logic Modules (Classification, Similarity, Draft, Query, etc.)
 - `frontend/src/App.js`: Main React Interface

@@ -53,7 +53,7 @@
 
                 resultDiv.innerHTML += `
                     <div class="status success">
-                        <strong>✅ Success!</strong><br>
+                        <strong> Success!</strong><br>
                         URL: ${url}<br>
                         Status: ${response.status}<br>
                         Response: ${JSON.stringify(data)}<br>
@@ -63,7 +63,7 @@
             } catch (error) {
                 resultDiv.innerHTML += `
                     <div class="status error">
-                        <strong>❌ Failed!</strong><br>
+                        <strong> Failed!</strong><br>
                         URL: ${url}<br>
                         Error: ${error.message}<br>
                         <small>Check Console (F12) for more details.</small>

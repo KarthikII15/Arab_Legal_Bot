@@ -7,7 +7,7 @@ const EvidencePanel = ({ analysis, caseText, draftText, setDraftText }) => {
         return (
             <div className="evidence-panel h-100 d-flex align-items-center justify-content-center bg-light text-muted">
                 <div className="text-center">
-                    <div className="display-1 mb-3">📂</div>
+                    <div className="display-1 mb-3"></div>
                     <h5>No Case Selected</h5>
                     <p>Upload a document or paste text to begin analysis.</p>
                 </div>
@@ -75,7 +75,7 @@ const EvidencePanel = ({ analysis, caseText, draftText, setDraftText }) => {
                         {recommendation && (
                             <div className="card bg-info bg-opacity-10 border-info mb-4">
                                 <div className="card-body">
-                                    <h6 className="card-title text-info fw-bold">💡 Recommendation</h6>
+                                    <h6 className="card-title text-info fw-bold"> Recommendation</h6>
                                     <p className="card-text">{recommendation.recommendation_ar}</p>
                                 </div>
                             </div>
@@ -166,7 +166,7 @@ const EvidencePanel = ({ analysis, caseText, draftText, setDraftText }) => {
                         </div>
 
                         <div className="mt-4 p-3 bg-warning bg-opacity-10 rounded">
-                            <small>⚠️ These statistics are based on historical data of similar cases and do not guarantee future outcomes.</small>
+                            <small>️ These statistics are based on historical data of similar cases and do not guarantee future outcomes.</small>
                         </div>
                     </div>
                 )}

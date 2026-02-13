@@ -18,8 +18,8 @@ from typing import Dict, List, Optional
 
 # ── Judicial Disclaimer ────────────────────────────────────────────────
 
-DISCLAIMER_AR = "⚠️ هذا تحليل دعم القرار وليس حكماً قضائياً ملزماً. القرار النهائي يعود للقاضي المختص."
-DISCLAIMER_EN = "⚠️ This is decision support analysis, not a binding judicial ruling. Final decision rests with the presiding judge."
+DISCLAIMER_AR = "️ هذا تحليل دعم القرار وليس حكماً قضائياً ملزماً. القرار النهائي يعود للقاضي المختص."
+DISCLAIMER_EN = "️ This is decision support analysis, not a binding judicial ruling. Final decision rests with the presiding judge."
 
 
 def generate_recommendation(
@@ -57,8 +57,8 @@ def generate_recommendation(
     if doc_type == "judgement":
         confidence = 0.99
         direction = "decided_judgement"
-        recommendation_ar = "⚠️ تم رصد أن هذه الوثيقة هي 'حكم قضائي' بالفعل. التحليل يشير إلى ثبوت الحق للمدعي (في حال الإلزام) أو رفض الدعوى."
-        recommendation_en = "⚠️ This document is detected as an existing 'Judgement'. The recommendation reflects the legal finality of the document."
+        recommendation_ar = "️ تم رصد أن هذه الوثيقة هي 'حكم قضائي' بالفعل. التحليل يشير إلى ثبوت الحق للمدعي (في حال الإلزام) أو رفض الدعوى."
+        recommendation_en = "️ This document is detected as an existing 'Judgement'. The recommendation reflects the legal finality of the document."
         
         # If we have extracted compensation, mention it
         if entities.get("compensation_amount"):

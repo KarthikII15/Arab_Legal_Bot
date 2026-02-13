@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
-
-// Import Components
 import { Layout } from './components/Layout';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -14,8 +12,124 @@ import { SettingsModal } from './components/SettingsModal';
 import { RelatedCaseModal } from './components/RelatedCaseModal';
 import { jsPDF } from 'jspdf';
 import { PanelLeft, PanelRight } from 'lucide-react';
+import { getStorageItem, setStorageItem, removeStorageItem, isStorageAvailable } from './utils/storage';
+
+// === AXIOS CONFIGURATION ===
+const API_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 300000);
+axios.defaults.timeout = API_TIMEOUT_MS; // Default 5 minutes for local LLM workloads
+
+// Define API_BASE here to use in apiClient creation
+const API_BASE = "http://127.0.0.1:5000";
+
+// Create axios instance with defaults
+const apiClient = axios.create({
+  baseURL: API_BASE,
+  timeout: API_TIMEOUT_MS,
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+// Add request interceptor for error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout - backend not responding');
+      return Promise.reject(new Error('Request timeout. Server is not responding. Please try again.'));
+    }
+    return Promise.reject(error);
+  }
+);
+
+// ===== ERROR BOUNDARY COMPONENT =====
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null
+    };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    // Log to console for debugging
+    console.error('ErrorBoundary caught:', error, errorInfo);
+
+    // Update state to show error UI
+    this.setState({
+      error,
+      errorInfo
+    });
+
+    // Optional: Send to error tracking service (e.g., Sentry)
+    // logErrorToService(error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: '20px',
+          textAlign: 'center',
+          backgroundColor: '#ffe6e6',
+          color: '#cc0000',
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          fontFamily: 'Arial, sans-serif'
+        }}>
+          <h1>️ Something Went Wrong</h1>
+          <p>The application encountered an error. Please refresh the page to continue.</p>
+
+          {process.env.NODE_ENV === 'development' && this.state.error && (
+            <details style={{
+              textAlign: 'left',
+              backgroundColor: '#f5f5f5',
+              padding: '10px',
+              borderRadius: '5px',
+              marginTop: '20px',
+              maxWidth: '600px'
+            }}>
+              <summary>Error Details (Development Only)</summary>
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {this.state.error.toString()}
+                {this.state.errorInfo?.componentStack}
+              </pre>
+            </details>
+          )}
+
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: '20px',
+              padding: '10px 20px',
+              backgroundColor: '#0066cc',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer'
+            }}
+          >
+            Refresh Page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function App() {
+  // ... existing code ...
   // Chat State
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -27,61 +141,105 @@ function App() {
 
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
-  const [fontSize, setFontSize] = useState(() => localStorage.getItem('fontSize') || 'medium');
+  const [fontSize, setFontSize] = useState(() => getStorageItem('fontSize', 'medium'));
   const [viewingCase, setViewingCase] = useState(null);
 
   // Conversation management
   const [conversations, setConversations] = useState(() => {
-    const saved = localStorage.getItem('conversations');
-    return saved ? JSON.parse(saved) : [];
+    let loaded = getStorageItem('conversations', []);
+
+    // Migration: Sanitize history by replacing old 'case_summary' actions immediately
+    if (loaded.length > 0) {
+      loaded = loaded.map(conv => ({
+        ...conv,
+        messages: conv.messages ? conv.messages.map(msg => {
+          if (msg.suggested_actions) {
+            return {
+              ...msg,
+              suggested_actions: msg.suggested_actions.map(action =>
+                action.action === "case_summary"
+                  ? { label: "Paste Text | لصق نص", action: "paste_text" }
+                  : action
+              )
+            };
+          }
+          return msg;
+        }) : []
+      }));
+    }
+    return loaded;
   });
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
   const messagesEndRef = useRef(null);
   const greetingSent = useRef(false);
-  const API_BASE = "http://127.0.0.1:5000";
+  // API_BASE is now defined at module level for apiClient
+
 
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Check health on mount
-  useEffect(() => {
-    checkHealth();
-    const interval = setInterval(checkHealth, 10000);
 
-    // Send greeting message
+
+  // Check health on mount with lifecycle management
+  useEffect(() => {
+    checkHealth(); // Initial check
+
+    // Poll every 30 seconds only if visible
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        checkHealth();
+      }
+    }, 30000);
+
+    // Immediate check when returning to tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkHealth();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Send greeting message only once
+  useEffect(() => {
     if (!greetingSent.current && messages.length === 0) {
       greetingSent.current = true;
       addAssistantMessage(
-        "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n- 📊 تحليل القضايا\n- ⚖️ تصنيف القضايا\n- 💡 التوصيات القانونية\n- 🔍 البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
+        "مرحباً بك!  أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n-  تحليل القضايا\n- ️ تصنيف القضايا\n-  التوصيات القانونية\n-  البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
         "greeting",
         [],
         null,
         [
           { label: "Upload Case | رفع قضية", action: "upload" },
-          { label: "Ask Question | اسأل سؤال", action: "ask_question" }
+          { label: "Paste Text | لصق نص", action: "paste_text" }
         ]
       );
     }
-
-    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Theme Management
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  const [theme, setTheme] = useState(() => getStorageItem('theme', 'light'));
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+    setStorageItem('theme', theme);
   }, [theme]);
 
   // Font Size Management
   useEffect(() => {
     document.documentElement.setAttribute('data-font-size', fontSize);
-    localStorage.setItem('fontSize', fontSize);
+    setStorageItem('fontSize', fontSize);
   }, [fontSize]);
 
   // Sync current messages/analysis to conversation list for persistence in session
@@ -97,7 +255,7 @@ function App() {
 
   // Persistence Management
   useEffect(() => {
-    localStorage.setItem('conversations', JSON.stringify(conversations));
+    setStorageItem('conversations', conversations);
   }, [conversations]);
 
   const toggleTheme = () => {
@@ -110,10 +268,10 @@ function App() {
 
   const checkHealth = async () => {
     try {
-      await axios.get(`${API_BASE}/health`, { timeout: 3000 });
+      await apiClient.get('/health');
       setHealthStatus("connected");
     } catch (err) {
-      setHealthStatus("disconnected");
+      setHealthStatus(err.message.includes('timeout') ? "timeout" : "disconnected");
     }
   };
 
@@ -124,18 +282,21 @@ function App() {
     setSelectedFile(null);
     setCurrentConversationId(null);
     greetingSent.current = false;
-    localStorage.removeItem('conversations'); // Assuming persistence might use this key later
+    setSelectedFile(null);
+    setCurrentConversationId(null);
+    greetingSent.current = false;
+    removeStorageItem('conversations'); // Assuming persistence might use this key later
 
     // Send greeting again after clear
     setTimeout(() => {
       addAssistantMessage(
-        "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n- 📊 تحليل القضايا\n- ⚖️ تصنيف القضايا\n- 💡 التوصيات القانونية\n- 🔍 البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
+        "مرحباً بك!  أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n-  تحليل القضايا\n- ️ تصنيف القضايا\n-  التوصيات القانونية\n-  البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
         "greeting",
         [],
         null,
         [
           { label: "Upload Case | رفع قضية", action: "upload" },
-          { label: "Case Summary | ملخص القضية", action: "case_summary" }
+          { label: "Paste Text | لصق نص", action: "paste_text" }
         ]
       );
     }, 500);
@@ -143,11 +304,12 @@ function App() {
     setShowSettings(false);
   };
 
-  const addUserMessage = (text, displayLabel = null) => {
+  const addUserMessage = (text, fileData = null) => {
     const newMessage = {
       id: Date.now(),
       role: 'user',
-      content: displayLabel || text, // Use label for UI bubble if provided
+      content: text,
+      fileData: fileData,
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, newMessage]);
@@ -168,117 +330,74 @@ function App() {
     setMessages(prev => [...prev, newMessage]);
   };
 
-  const sendChatMessage = async (userMessage, displayLabel = null) => {
+  const sendChatMessage = async (userMessage, displayMessage = null) => {
     if (!userMessage.trim()) return;
 
-    const msgId = addUserMessage(userMessage, displayLabel);
+    const shownMessage = (displayMessage || userMessage || '').toString().trim();
+    const msgId = addUserMessage(shownMessage);
     setLoading(true);
 
-    // Initial placeholder for streaming response
-    const assistantMsgId = Date.now() + 100;
-    const initialAssistantMessage = {
-      id: assistantMsgId,
-      role: 'assistant',
-      content: '', // Start empty
-      intent: 'general_inquiry',
-      citations: [],
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, initialAssistantMessage]);
-
     try {
-      const response = await fetch(`${API_BASE}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMessage,
-          analysis_data: analysis,
-          case_text: analysis ? "Case analyzed" : null
-        })
+      const response = await apiClient.post('/chat', {
+        message: userMessage,
+        analysis_data: analysis,
+        case_text: analysis?.text || null
       });
-
-      if (!response.ok) throw new Error('Network response was not ok');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const data = JSON.parse(line);
-
-            if (data.type === 'start') {
-              setMessages(prev => prev.map(m => {
-                if (m.id === assistantMsgId) return { ...m, intent: data.intent };
-                return m;
-              }));
-            } else if (data.type === 'metadata' && data.user_translation) {
-              setMessages(prev => prev.map(m => {
-                if (m.id === msgId) return { ...m, translation: data.user_translation };
-                return m;
-              }));
-            } else if (data.type === 'content') {
-              fullText += data.text;
-              setMessages(prev => prev.map(m =>
-                m.id === assistantMsgId ? {
-                  ...m,
-                  content: fullText,
-                  citations: data.citations || m.citations
-                } : m
-              ));
-            } else if (data.type === 'analysis' && data.analysis_data) {
-              setAnalysis(data.analysis_data);
-            } else if (data.type === 'end') {
-              setMessages(prev => prev.map(m =>
-                m.id === assistantMsgId ? {
-                  ...m,
-                  suggested_actions: data.suggested_actions || [],
-                  citations: data.citations || m.citations
-                } : m
-              ));
-            }
-          } catch (e) {
-            console.error("Error parsing stream chunk:", e);
-          }
-        }
-      }
-
       setHealthStatus("connected");
 
-      // Final post-processing (cleanup, translation check, etc.)
-      const finalizedMessage = messages.find(m => m.id === assistantMsgId);
-      if (finalizedMessage && finalizedMessage.content.includes("---")) {
-        // It's already bilingual
+      const { text, citations, user_translation, assistant_translation, suggested_actions, intent: respIntent, analysis_data: respAnalysis } = response.data;
+
+      // Update analysis context if backend provides an updated one (auto-analysis)
+      if (respAnalysis) {
+        setAnalysis(respAnalysis);
       }
 
-      // Add to conversations if new
+      // Update user message with translation if available
+      if (user_translation) {
+        setMessages(prev => prev.map(msg =>
+          msg.id === msgId ? { ...msg, translation: user_translation } : msg
+        ));
+      }
+
+      addAssistantMessage(text, respIntent || '', citations || [], assistant_translation, suggested_actions || []);
+
+      // Add to conversations if new and no file was uploaded
       if (!currentConversationId) {
         const newConvId = Date.now();
         setCurrentConversationId(newConvId);
         setConversations(prev => [{
           id: newConvId,
-          title: userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : ''),
+          title: shownMessage.substring(0, 30) + (shownMessage.length > 30 ? '...' : ''),
           preview: 'محادثة نصية',
           timestamp: new Date().toISOString(),
-          messages: [...messages, initialAssistantMessage, { ...initialAssistantMessage, content: fullText }],
+          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: text, translation: assistant_translation, citations: citations || [], timestamp: new Date().toISOString() }],
+          analysis: analysis
+        }, ...prev]);
+      } else if (!conversations.find(c => c.id === currentConversationId)) {
+        // Fallback for cases where ID is set but not in list
+        setConversations(prev => [{
+          id: currentConversationId,
+          title: shownMessage.substring(0, 30) + (shownMessage.length > 30 ? '...' : ''),
+          preview: 'محادثة نصية',
+          timestamp: new Date().toISOString(),
+          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: text, translation: assistant_translation, citations: citations || [], timestamp: new Date().toISOString() }],
           analysis: analysis
         }, ...prev]);
       }
 
     } catch (error) {
       console.error("Chat error:", error);
-      setMessages(prev => prev.filter(m => m.id !== assistantMsgId));
+
+      let errorMessage = "عذراً، حدث خطأ في معالجة طلبك.\n\nSorry, an error occurred processing your request.";
+      if (error.message.includes('timeout')) {
+        errorMessage = "️ انتهت مهلة الاتصال. الخادم لا يستجيب.\n\nConnection timeout. Server is not responding.";
+        setHealthStatus("timeout");
+      } else {
+        setHealthStatus("error");
+      }
+
       addAssistantMessage(
-        "عذراً، حدث خطأ في معالجة طلبك.\n\nSorry, an error occurred processing your request.",
+        errorMessage,
         "error",
         [],
         null,
@@ -304,7 +423,7 @@ function App() {
     formData.append("file", file);
 
     try {
-      const response = await axios.post(`${API_BASE}/upload-analyze`, formData, {
+      const response = await apiClient.post('/upload-analyze', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
@@ -312,8 +431,10 @@ function App() {
       setHealthStatus("connected");
       setSelectedFile(null);
 
+      const confidence = (response.data.classification.confidence * 100).toFixed(0);
+
       addAssistantMessage(
-        `تم تحليل الملف بنجاح!\n\nنوع القضية: ${response.data.classification.name_ar}\n\n---\n\nFile analyzed successfully!\n\nCase Type: ${response.data.classification.name_en}`,
+        ` تم تحليل الملف بنجاح!\n\n نوع القضية: ${response.data.classification.name_ar}\n درجة الثقة: ${confidence}%\n\n---\n\n File analyzed successfully!\n\n Case Type: ${response.data.classification.name_en}\n Confidence: ${confidence}%`,
         "file_analyzed"
       );
 
@@ -326,7 +447,7 @@ function App() {
           title: response.data.classification.name_ar,
           preview: file.name,
           timestamp: new Date().toISOString(),
-          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: `تم تحليل الملف بنجاح!\n\nنوع القضية: ${response.data.classification.name_ar}\n\n---\n\nFile analyzed successfully!`, intent: "file_analyzed", timestamp: new Date().toISOString() }],
+          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: ` تم تحليل الملف بنجاح!\n\n نوع القضية: ${response.data.classification.name_ar}\n درجة الثقة: ${confidence}%\n\n---\n\n File analyzed successfully!`, intent: "file_analyzed", timestamp: new Date().toISOString() }],
           analysis: response.data
         }, ...prev]);
       }
@@ -334,7 +455,7 @@ function App() {
     } catch (error) {
       console.error("Upload error:", error);
       addAssistantMessage(
-        `❌ خطأ في رفع الملف\n\n${error.response?.data?.detail || error.message}\n\nError uploading file`,
+        ` خطأ في رفع الملف\n\n${error.response?.data?.detail || error.message}\n\nError uploading file`,
         "error"
       );
     } finally {
@@ -344,7 +465,7 @@ function App() {
 
   const handleNewChat = () => {
     // Reset backend context
-    axios.post(`${API_BASE}/chat/clear`, { confirm: true }).catch(err => console.error(err));
+    apiClient.post('/chat/clear', { confirm: true }).catch(err => console.error(err));
 
     const newConvId = Date.now();
     setCurrentConversationId(newConvId);
@@ -354,13 +475,13 @@ function App() {
     greetingSent.current = false;
     // Trigger greeting again
     addAssistantMessage(
-      "مرحباً بك! 👋 أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n- 📊 تحليل القضايا\n- ⚖️ تصنيف القضايا\n- 💡 التوصيات القانونية\n- 🔍 البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
+      "مرحباً بك!  أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n-  تحليل القضايا\n- ️ تصنيف القضايا\n-  التوصيات القانونية\n-  البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
       "greeting",
       [],
       null,
       [
         { label: "Upload Case | رفع قضية", action: "upload" },
-        { label: "Ask Question | اسأل سؤال", action: "ask_question" }
+        { label: "Paste Text | لصق نص", action: "paste_text" }
       ]
     );
   };
@@ -401,7 +522,7 @@ function App() {
     const messagesToArchive = (convId === currentConversationId) ? messages : [];
 
     try {
-      await axios.post(`${API_BASE}/conversations/archive`, {
+      await apiClient.post('/conversations/archive', {
         conversation_id: String(convId),
         title: conversationToArchive.title,
         preview: conversationToArchive.preview,
@@ -414,24 +535,24 @@ function App() {
     }
   };
 
-  const handleSuggestedAction = (action, label) => {
-    console.log("Suggested action clicked:", action, label);
+  const extractArabicLabel = (label, fallbackAction) => {
+    const raw = (label || '').toString();
+    if (!raw) return fallbackAction || '';
+    const parts = raw.split('|').map(p => p.trim()).filter(Boolean);
+    const arabicPart = parts.find(p => /[\u0600-\u06FF]/.test(p));
+    if (arabicPart) return arabicPart;
+    return parts[0] || fallbackAction || '';
+  };
 
-    switch (action) {
+  const handleSuggestedAction = (action, label) => {
+    const normalizedAction = (action || '').toString().trim().toLowerCase();
+    const arabicLabel = extractArabicLabel(label, normalizedAction);
+    console.log("Suggested action clicked:", normalizedAction, label);
+
+    switch (normalizedAction) {
       case 'upload':
         // Trigger file input or show prompt
         document.querySelector('input[type="file"]')?.click();
-        break;
-      case 'ask_question':
-        // Focus the chat input
-        document.querySelector('textarea')?.focus();
-        break;
-      case 'retry':
-        // Find last user message
-        const userMsgs = messages.filter(m => m.role === 'user');
-        if (userMsgs.length > 0) {
-          sendChatMessage(userMsgs[userMsgs.length - 1].content);
-        }
         break;
       case 'paste_text':
       case 'learn_more':
@@ -448,11 +569,11 @@ function App() {
       case 'outcome':
       case 'compensation':
       case 'entities':
-        // Send the action string for backend, but show the professional label in UI
-        sendChatMessage(action, label);
+        // Send the action string directly to trigger exact intent matching
+        sendChatMessage(normalizedAction, arabicLabel);
         break;
       default:
-        sendChatMessage(label);
+        sendChatMessage(normalizedAction || label || '', arabicLabel);
         break;
     }
   };
@@ -475,6 +596,17 @@ function App() {
 
   return (
     <Layout showSidebar={showSidebar} showTools={showTools}>
+      {!isStorageAvailable() && (
+        <div style={{
+          padding: '10px',
+          backgroundColor: '#fff3cd',
+          color: '#856404',
+          textAlign: 'center',
+          borderBottom: '1px solid #ffeeba'
+        }}>
+          ️ Storage disabled (private mode or quota exceeded). Data may not persist.
+        </div>
+      )}
       {/* Header */}
       <Header
         healthStatus={healthStatus}
@@ -514,7 +646,7 @@ function App() {
         <div className="chat-messages-container">
           {messages.length === 0 ? (
             <div className="chat-empty-state">
-              <div className="chat-empty-icon">⚖️</div>
+              <div className="chat-empty-icon"></div>
               <h2 className="chat-empty-title">
                 أهلاً بك في المساعد القانوني
               </h2>
@@ -539,7 +671,7 @@ function App() {
           {/* Loading State */}
           {loading && (
             <div className="chat-loading-wrapper">
-              <div className="chat-loading-icon">⚖️</div>
+              <div className="chat-loading-icon"></div>
               <div className="thinking-text">
                 <ThinkingIndicator message="جاري معالجة طلبك..." />
                 <div className="en-tiny">Processing your request...</div>
@@ -699,4 +831,10 @@ function App() {
   );
 }
 
-export default App;
+export default function AppWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}

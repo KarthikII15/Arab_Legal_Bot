@@ -70,7 +70,7 @@ def build_index():
     with open(metadata_path, 'wb') as f:
         pickle.dump(laws, f)
         
-    print("✅ indexing complete!")
+    print(" indexing complete!")
 
 if __name__ == "__main__":
     build_index()

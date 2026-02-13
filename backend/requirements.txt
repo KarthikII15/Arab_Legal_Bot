@@ -1,7 +1,8 @@
 fastapi
 uvicorn
-pydantic
 sentence-transformers
+pydantic
+python-dotenv
 faiss-cpu
 torch
 transformers
@@ -13,3 +14,4 @@ pymupdf
 python-docx
 deep-translator
 accelerate
+slowapi

@@ -670,7 +670,7 @@ button {
 }
 
 .state-error::before {
-  content: '⚠️';
+  content: '️';
 }
 
 .state-success {
@@ -679,7 +679,7 @@ button {
 }
 
 .state-success::before {
-  content: '✓';
+  content: '';
 }
 
 @keyframes pulse-dots {

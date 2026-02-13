@@ -49,7 +49,7 @@ export const Header = ({
   return (
     <header className="app-header">
       <div className="header-logo">
-        <div className="header-logo-icon">⚖️</div>
+        <div className="header-logo-icon">️</div>
         <div className="header-logo-text">
           <h1>Legal Assistant</h1>
           <p>AI-Powered Case Analysis</p>
@@ -330,7 +330,7 @@ export const Message = ({
   return (
     <div className={`message ${message.role}`}>
       <div className="message-avatar">
-        {message.role === 'user' ? '👤' : '⚖️'}
+        {message.role === 'user' ? 'U' : 'L'}
       </div>
 
       <div style={{ flex: 1 }}>
@@ -361,7 +361,7 @@ export const Message = ({
                   marginBottom: showCitations ? 'var(--space-2)' : 0,
                 }}
               >
-                <span>📚 {message.citations.length} Sources</span>
+                <span> {message.citations.length} Sources</span>
                 <ChevronDown 
                   size={14}
                   style={{
@@ -503,7 +503,7 @@ export const StreamingIndicator = ({ wordCount = 0, timeElapsed = 0 }) => (
 
 export const ErrorIndicator = ({ message, onRetry }) => (
   <div className="state-indicator state-error">
-    <span>⚠️ {message}</span>
+    <span>️ {message}</span>
     {onRetry && (
       <button
         onClick={onRetry}
@@ -524,7 +524,7 @@ export const ErrorIndicator = ({ message, onRetry }) => (
 
 export const SuccessIndicator = ({ message }) => (
   <div className="state-indicator state-success">
-    ✓ {message}
+     {message}
   </div>
 );
 
@@ -544,7 +544,7 @@ export const ToolsPanel = ({
 }) => {
   return (
     <aside className="app-tools">
-      <div className="tools-header">📊 Tools & Context</div>
+      <div className="tools-header"> Tools & Context</div>
 
       <div className="tools-content">
         {uploadedCase && (
@@ -596,7 +596,7 @@ export const ToolsPanel = ({
                   justifyContent: 'space-between',
                   alignItems: 'center',
                 }}>
-                  <span>📋 Case {caseItem.number}</span>
+                  <span> Case {caseItem.number}</span>
                   <span style={{
                     fontSize: 'var(--font-size-xs)',
                     color: 'var(--color-success)',

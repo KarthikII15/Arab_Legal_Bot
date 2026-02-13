@@ -1,4 +1,4 @@
-# 🏗️ Chatbot Architecture & System Design
+# ️ Chatbot Architecture & System Design
 
 ## System Overview
 
@@ -145,7 +145,7 @@ ConversationContext Object
 │
 ├─ messages[]
 │  ├─ Message 1: {role: "user", content: "upload file"}
-│  ├─ Message 2: {role: "assistant", content: "✅ Analyzed"}
+│  ├─ Message 2: {role: "assistant", content: " Analyzed"}
 │  ├─ Message 3: {role: "user", content: "summary"}
 │  └─ Message N: {...}
 │
@@ -363,7 +363,7 @@ App.js (Main Component)
 ## Data Flow: File Upload Analysis
 
 ```
-User clicks 📁
+User clicks 
     ↓
 File input dialog opens
     ↓
@@ -371,7 +371,7 @@ User selects PDF/DOCX/TXT
     ↓
 React state: selectedFile = File object
     ↓
-User clicks "✓ filename"
+User clicks " filename"
     ↓
 handleFileUpload() triggered
     ↓
@@ -388,7 +388,7 @@ React receives analysis JSON
     ↓
 State: analysis = response_data
     ↓
-Chat message added: "File analyzed ✅"
+Chat message added: "File analyzed "
     ↓
 Suggested actions shown
     ↓
@@ -527,11 +527,11 @@ Credentials: Allowed
 
 ### Data Privacy
 ```
-✅ No user authentication
-✅ No persistent storage
-✅ No analytics tracking
-✅ Local session only
-✅ Data cleared on window close
+ No user authentication
+ No persistent storage
+ No analytics tracking
+ Local session only
+ Data cleared on window close
 ```
 
 ---
@@ -540,21 +540,21 @@ Credentials: Allowed
 
 | Browser | Version | Support |
 |---------|---------|---------|
-| Chrome | Latest | ✅ Full |
-| Firefox | Latest | ✅ Full |
-| Safari | Latest | ✅ Full |
-| Edge | Latest | ✅ Full |
+| Chrome | Latest |  Full |
+| Firefox | Latest |  Full |
+| Safari | Latest |  Full |
+| Edge | Latest |  Full |
 
 ### Features Supported
 ```
-✅ Fetch API
-✅ FormData
-✅ localStorage (optional)
-✅ Web Workers (optional)
-✅ RTL Text (native)
-✅ File API
-✅ Flexbox Layout
-✅ CSS Animations
+ Fetch API
+ FormData
+ localStorage (optional)
+ Web Workers (optional)
+ RTL Text (native)
+ File API
+ Flexbox Layout
+ CSS Animations
 ```
 
 ---
@@ -594,4 +594,4 @@ The chatbot architecture elegantly combines:
 5. **Robust Error Handling** - Graceful failure recovery
 6. **Bilingual Support** - Arabic and English seamlessly
 
-All while maintaining the sophisticated legal analysis capabilities in a user-friendly conversational interface! 🚀
+All while maintaining the sophisticated legal analysis capabilities in a user-friendly conversational interface! 
