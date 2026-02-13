@@ -6,11 +6,40 @@ Maintains context and routes user messages to appropriate analysis engines.
 
 import json
 import logging
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Optional, Any, Tuple
 from datetime import datetime
 import re
 
 logger = logging.getLogger(__name__)
+
+# --- CONFIGURATION & TEMPLATES ---
+# Deterministic Professional Prompt
+SYSTEM_PROMPT_LEGAL = """أنت محرك ذكاء قانوني (Legal Intelligence Engine) وليس مجرد محادثة آليه.
+مهمتك: تنسيق وتحليل البيانات المستخرجة من القضية بدقة نظامية.
+
+قواعد صارمة (STRICT RULES):
+1. التقيد بالبيانات: اعتمد حصراً على بيانات القضية المزودة إليك (Case Analysis Data).
+2. منع الهلوسة: لا تذكر معلومات عن النظام السعودي بشكل عام (مثل: "تشمل الأنظمة السعودية...") أو تاريخ القوانين.
+3. منع الابتكار: لا تقترح إجراءات غير مرتبطة مباشرة بحقائق القضية الحالية.
+4. اللغة: استخدم لغة تقريرية مهنية (مثال: "يجب على المدعى عليه"، "منطوق الحكم يقضي بـ").
+5. النزاهة: إذا كانت المعلومة غير موجودة في البيانات، اكتب "غير متوفر" ولا تخمن.
+6. العملة: استخدم SAR حصراً.
+7. الترجمة: إذا طُلب منك الترجمة، فقم بترجمة الحقائق فقط دون إضافة ديباجات عامة."""
+
+SUMMARY_TEMPLATE_JUDGMENT = """**🏛 ملخص الحكم القضائي**
+- **نوع القضية:** {case_type}
+- **موضوع النزاع:** {subject}
+- **المبلغ المحكوم به:** {amount}
+- **الأسباب الجوهرية:** {reasoning}
+- **منطوق الحكم:** {judgment}"""
+
+SUMMARY_TEMPLATE_CLAIM = """**📊 تحليل الطلب القضائي**
+- **نوع القضية:** {case_type}
+- **المطالبة:** {claim}
+- **المستندات المطلوبة:** {docs}
+- **الفرص النظامية:** {opportunities}"""
 
 # Try to import deep-translator for user message translation
 try:
@@ -81,19 +110,41 @@ class ChatEngine:
     Routes user queries to appropriate analysis engines based on intent detection.
     """
     
-    def __init__(self):
+    def __init__(self, llm=None, analyzer=None):
+        self.llm = llm if llm else (LocalLLM() if HAS_LLM else None)
+        self.analyzer = analyzer
         self.context = ConversationContext()
-        self.intent_keywords = self._initialize_intents()
-        # Initialize Local LLM (lazy loading inside the class)
-        self.llm = LocalLLM() if HAS_LLM else None
-        # Initialize Legal Research Engine
+        self.executor = ThreadPoolExecutor(max_workers=2) # Concurrency for blocking LLM calls
         self.research_engine = LegalResearchEngine() if HAS_RESEARCH else None
-        # Shared analyzer logic
-        self.analyzer = None
+        self.intent_keywords = self._initialize_intents()
         
     def set_analyzer(self, analyzer_func):
         """Inject the full analysis pipeline function."""
         self.analyzer = analyzer_func
+
+    def _generate_prompt_context(self, analysis_data: Dict) -> str:
+        """
+        Context Compression: Extract only structured facts to avoid 
+        passing raw 25k+ character text to the LLM prompt.
+        """
+        clf = analysis_data.get("classification", {})
+        rec = analysis_data.get("recommendation", {})
+        entities = analysis_data.get("entities", {}) # Potentially from a deeper analysis
+        
+        facts = [
+            f"- Case Type: {clf.get('name_en', 'Unknown')}",
+            f"- Document Type: {rec.get('direction', 'General Inquiry')}",
+            f"- Extracted Award: {rec.get('award_amount', 'N/A')} SAR",
+            f"- Primary Law: Saudi Labor Law (1426H / 2005G)",
+        ]
+        
+        # Add entities if available
+        if entities:
+            if entities.get("plaintiff"): facts.append(f"- Plaintiff: {entities['plaintiff']}")
+            if entities.get("defendant"): facts.append(f"- Defendant: {entities['defendant']}")
+            if entities.get("date"): facts.append(f"- Case Date: {entities['date']}")
+
+        return "\n".join(facts)
     
     def _clean_draft(self, text: str, facts: Dict[str, Any]) -> str:
         """Substitute template placeholders with actual facts."""
@@ -106,16 +157,18 @@ class ChatEngine:
     def _initialize_intents(self) -> Dict[str, List[str]]:
         """Define intent detection keywords in Arabic and English."""
         return {
-            "case_summary": ["ملخص", "summary", "ملخص القضية", "summarize", "اختصار", "case_summary", "show_details", "summary", "summaries"],
+            "case_summary": ["ملخص", "summary", "ملخص القضية", "summarize", "اختصار", "show_details"],
             "case_type": ["النوع", "type", "classification", "التصنيف", "نوع القضية"],
             "similar_cases": ["حالات مشابهة", "similar", "precedent", "similar cases", "قضايا شبيهة", "قضايا مشابهة", "مشابهة", "search_similar"],
             "legal_principles": ["المبادئ", "principles", "قواعد قانونية", "legal_principles"],
             "trends": ["الاتجاهات", "trends", "statistics", "إحصائيات", "معدلات"],
             "recommendation": ["توصية", "advice", "رأي", "اقتراح", "recommendations", "recommendation"],
-            "full_analysis": ["تحليل", "analyze", "analysis", "تحليل شامل", "اشرح", "full_analysis"],
+            "full_analysis": ["تحليل", "analyze", "analysis", "تحليل شامل", "ashrah", "full_analysis", "عرض التفاصيل الكاملة"],
             "draft": ["مسودة", "draft", "نماذج"],
-            "draft_claim": ["لائحة دعوى", "plaintiff claim", "صحيفة دعوى", "claim draft", "تقديم دعوى", "plaintiff_claim"],
-            "draft_defense": ["مذكرة دفاع", "defense memo", "defense draft", "مذكرة جوابية", "رد على دعوى", "defense_memo"],
+            "draft_claim": ["لائحة دعوى", "plaintiff claim", "صحيفة دعوى", "claim draft", "تقديم دعوى", "draft_claim"],
+            "draft_defense": ["مذكرة دفاع", "defense memo", "defense draft", "مذكرة جوابية", "رد على دعوى", "draft_defense"],
+            "draft_appeal": ["مذكرة اعتراض", "appeal memo", "draft_appeal", "اعتراض"],
+            "draft_enforcement": ["طلب تنفيذ", "enforcement petition", "draft_enforcement", "تنفيذ"],
             "outcome": ["النتيجة", "outcome", "result", "probability", "احتمالية"],
             "compensation": ["تعويض", "compensation", "damages", "amount", "مبلغ"],
             "entities": ["الأطراف", "parties", "entities", "من", "شخصيات"]
@@ -225,6 +278,116 @@ class ChatEngine:
         arabic_chars = len([c for c in text if '\u0600' <= c <= '\u06FF'])
         english_chars = len([c for c in text if 'a' <= c.lower() <= 'z'])
         return "ar" if arabic_chars >= english_chars else "en"
+
+    async def process_message_stream(
+        self,
+        user_message: str,
+        analysis_data: Optional[Dict] = None,
+        case_text: Optional[str] = None
+    ):
+        """Streaming version with zero-latency start and non-blocking analysis."""
+        try:
+            # 1. IMMEDIATE START: Prevent connection timeouts
+            yield json.dumps({"type": "start", "intent": "detecting..."}) + "\n"
+
+            # 2. SYNC CONTEXT (Non-blocking)
+            if analysis_data is not None:
+                self.context.set_analysis(analysis_data, case_text)
+            self.context.add_message("user", user_message)
+
+            # 3. INTENT DETECTION
+            intent = self.detect_intent(user_message)
+            yield json.dumps({"type": "start", "intent": intent}) + "\n"
+
+            # 4. BACKGROUND PROCESSING: Analytics & Translation
+            # Detect if this is a NEW case description requiring re-analysis
+            is_new_case_input = False
+            if intent in ["case_summary", "similar_cases", "full_analysis", "recommendations"] and self.analyzer:
+                if not self.context.analysis_data:
+                    is_new_case_input = True
+                elif len(user_message) > 400:
+                    current_text = self.context.case_text or ""
+                    if user_message[:100].lower() != current_text[:100].lower():
+                        is_new_case_input = True
+
+            if is_new_case_input:
+                try:
+                    logger.info("🔍 [DEFERRED-ANALYSIS] Running analyst...")
+                    analysis_result = await self.analyzer(user_message)
+                    analysis_dict = analysis_result.dict()
+                    self.context.set_analysis(analysis_dict, user_message)
+                    yield json.dumps({"type": "analysis", "analysis_data": analysis_dict}) + "\n"
+                except Exception as e:
+                    logger.error(f"Deferred analysis failed: {e}")
+
+            # Background User Translation
+            if HAS_TRANSLATOR and any('\u0600' <= char <= '\u06FF' for char in user_message):
+                try:
+                    user_translation = GoogleTranslator(source='auto', target='en').translate(user_message[:1000])
+                    if user_translation:
+                        yield json.dumps({"type": "metadata", "user_translation": user_translation}) + "\n"
+                except Exception as e: logger.warning(f"Metadata translation fail: {e}")
+
+            # 5. RESPONSE GENERATION
+            full_content = ""
+            suggested_actions = []
+            citations = []
+            
+            # Fetch handler prepared data (grounded)
+            context_data = await self._generate_response(user_message, intent)
+            suggested_actions = context_data.get("suggested_actions", [])
+            citations = context_data.get("citations", [])
+            grounded_text = context_data.get("text", "")
+
+            # Determination: Use grounded text for specific discovery intents
+            is_deterministic_intent = intent in ["case_summary", "full_analysis", "recommendation", "similar_cases", "legal_principles"]
+            
+            if is_deterministic_intent and grounded_text:
+                # Yield grounded text directly to avoid LLM improvisation
+                chunk_size = 60
+                for i in range(0, len(grounded_text), chunk_size):
+                    chunk = grounded_text[i:i+chunk_size]
+                    full_content += chunk
+                    yield json.dumps({"text": chunk, "type": "content"}) + "\n"
+                    await asyncio.sleep(0.01)
+            elif self.llm:
+                # For general queries or if no grounded text, use LLM
+                async for chunk in self.llm.generate_stream(user_message[:1500], SYSTEM_PROMPT_LEGAL, max_new_tokens=512):
+                    full_content += chunk
+                    yield json.dumps({"text": chunk, "type": "content"}) + "\n"
+            else:
+                yield json.dumps({"text": grounded_text, "type": "content"}) + "\n"
+                full_content = grounded_text
+
+            # 6. POST-TRANSLATION (Assistant Response)
+            if HAS_TRANSLATOR and "---" not in full_content and any('\u0600' <= char <= '\u06FF' for char in full_content):
+                try:
+                    bot_translation = GoogleTranslator(source='auto', target='en').translate(full_content[:1500])
+                    if bot_translation:
+                        divider = "\n\n---\n\n"
+                        yield json.dumps({"text": divider + bot_translation, "type": "content"}) + "\n"
+                        full_content += divider + bot_translation
+                except Exception as e: logger.warning(f"Bot translation fail: {e}")
+
+            self.context.add_message("assistant", full_content)
+            yield json.dumps({"type": "end", "suggested_actions": suggested_actions, "citations": citations}) + "\n"
+
+        except Exception as e:
+            logger.error(f"Stream error: {e}", exc_info=True)
+            yield json.dumps({"text": f"System error occurred. Please retry.", "type": "content", "error": True}) + "\n"
+            yield json.dumps({"type": "end"}) + "\n"
+
+    async def _run_deferred_analysis(self, user_message: str):
+        """Helper to run analysis in background and update context."""
+        try:
+            logger.info("🔍 [DEFERRED-ANALYSIS] Running analyst...")
+            analysis_result = await self.analyzer(user_message)
+            analysis_dict = analysis_result.dict()
+            self.context.set_analysis(analysis_dict, user_message)
+            return analysis_dict
+        except Exception as e:
+            logger.error(f"Deferred analysis failed: {e}")
+            return None
 
     async def process_message(
         self,
@@ -369,71 +532,43 @@ How can I help you today?""",
         }
     
     async def _handle_case_summary(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Respond with domain-sensitive case summary (Arabic First)."""
+        """Respond with domain-sensitive case summary (Initial Discovery Phase)."""
         clf = analysis.get("classification", {})
-        principles = analysis.get("legal_principles", [])
-        recommendation = analysis.get("recommendation", {})
-        trends = analysis.get("trends", {})
-        case_type_en = clf.get('name_en', '').lower()
-        
-        # Domain-Sensitive Principle Selection
-        if "traffic" in case_type_en or "accident" in case_type_en or "injury" in case_type_en:
-            domain_principles_ar = [
-                "• المسؤولية عن الضرر - كل خطأ سبب ضرراً للغير يلزم من ارتكبه بالتعويض.",
-                "• الضمان - المتسبب في الضرر ضامن وإن لم يتعمد."
-            ]
-            domain_principles_en = [
-                "• Liability for Harm - Any fault causing harm to others obligates compensation.",
-                "• Tort Liability - The cause of harm is liable regardless of intent."
-            ]
-        else:
-            domain_principles_ar = [f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}" for p in principles[:3]] if principles else ["لم يتم استخراج مبادئ"]
-            domain_principles_en = [f"• {p.get('name_en', '')}" for p in principles[:3]] if principles else ["No principles extracted"]
+        rec = analysis.get("recommendation", {})
+        direction = rec.get("direction", "").lower()
+        is_judgement = direction == "decided_judgement" or "حكم" in str(rec.get("recommendation_ar", "")).lower()
 
-        principles_text_ar = "\n".join(domain_principles_ar)
-        principles_text_en = "\n".join(domain_principles_en)
-        
-        rec_text_ar = recommendation.get("recommendation_ar", "لم تتوفر توصيات")
-        rec_text_en = recommendation.get("recommendation_en", "No recommendations available")
-        
-        # Currency Scrub
-        rec_text_en = rec_text_en.replace("Rs.", "SAR").replace("rupees", "SAR").replace("Rupees", "SAR")
-        
-        win_rate = trends.get("plaintiff_win_rate", "N/A")
-        sample_size = trends.get("sample_size", 0)
-        
-        response_ar = f"""### ملخص التحليل الاستشاري
- 
-**نوع القضية:** {clf.get('name_ar', 'N/A')}
-**الموقف القانوني:** بناءً على {sample_size} سوابق قضائية مماثلة، تبلغ نسبة فوز المدعي حوالي {win_rate}%.
- 
-**المبادئ القانونية المستند إليها:**
-{principles_text_ar}
- 
-**التوصية القانونية:**
-{rec_text_ar}"""
- 
-        response_en = f"""### Consultative Analysis Summary
- 
-**Case Type:** {clf.get('name_en', 'N/A')}
-**Legal Position:** Based on {sample_size} historical precedents, the plaintiff win rate is approximately {win_rate}%.
- 
-**Applicable Legal Principles:**
-{principles_text_en}
- 
-**Professional Recommendation:**
-{rec_text_en}"""
+        if is_judgement:
+            ar_text = SUMMARY_TEMPLATE_JUDGMENT.format(
+                case_type=clf.get("name_ar", "غير محدد"),
+                subject=analysis.get("entities", {}).get("subject", "نزاع قانوني"),
+                amount=f"{rec.get('award_amount', '0')} SAR",
+                reasoning=analysis.get("legal_principles", [{}])[0].get("principle_ar", "بناءً على الوقائع المرفقة"),
+                judgment=rec.get("recommendation_ar", "إلزام الطرف بمتطلبات الدعوى")
+            )
+        else:
+            ar_text = SUMMARY_TEMPLATE_CLAIM.format(
+                case_type=clf.get("name_ar", "غير محدد"),
+                claim=f"{rec.get('award_amount', '0')} SAR",
+                docs="عقود، مستندات إثبات، وكالات",
+                opportunities="تطبيق الأنظمة ذات الصلة"
+            )
+
+        en_text = f"Case Summary:\nType: {clf.get('name_en', 'N/A')}\nDirection: {direction}\nStatus: {'Judged' if is_judgement else 'Open Dispute'}"
+
+        # USER REQUIREMENT: Initial discovery phase buttons ONLY
+        suggested_actions = [
+            {"label": "Full Details | عرض التفاصيل الكاملة", "action": "full_analysis"},
+            {"label": "Recommendations | التوصيات", "action": "recommendations"}
+        ]
 
         return {
-            "text": f"{response_ar}\n\n---\n\n{response_en}",
+            "text": f"{ar_text}\n\n---\n\n{en_text}",
             "intent": "case_summary",
-            "suggested_actions": [
-                {"label": "Full Details | عرض التفاصيل الكاملة", "action": "full_analysis"},
-                {"label": "Similar Cases | قضايا مشابهة", "action": "similar_cases"},
-                {"label": "Recommendations | التوصيات", "action": "recommendations"}
-            ],
-            "citations": self._format_case_citations(analysis.get("related_cases", []))
+            "suggested_actions": suggested_actions,
+            "citations": [] 
         }
+
     
     async def _handle_case_type(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Respond with case classification (Arabic First)."""
@@ -524,75 +659,93 @@ Case Classification:
             "citations": self._format_case_citations(analysis.get("related_cases", []))
         }
     
-    async def _handle_recommendation(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Respond with actionable lifecycle-aware recommendation (Arabic First)."""
-        classification = analysis.get("classification", {})
+    async def _handle_recommendation(self, query: str, analysis: Dict, stream: bool = False) -> Any:
+        """Respond with actionable lifecycle-aware recommendation using professional tone."""
         recommendation = analysis.get("recommendation", {})
         trends = analysis.get("trends", {})
-        direction = recommendation.get("direction", "").lower()
-        is_judgement = direction == "decided_judgement" or "حكم" in str(recommendation.get("recommendation_ar", "")).lower() or trends.get("is_judgement", False)
-
-        if self.llm:
-            try:
-                case_context = json.dumps({"classification": classification, "is_judgement": is_judgement, "amount": recommendation.get("award_amount")}, ensure_ascii=False)
-                
-                system_prompt = """أنت محامي سعودي خبير بالأنظمة التجارية والمدنية والجزائية.
-يجب أن تكون التوصيات عملية وإجرائية (Actionable Advice).
-استخدم عملة 'SAR' أو 'ريال سعودي' حصراً. لا تستخدم 'Rs.' أو 'الروبية' أبداً."""
-
-                if is_judgement:
-                    system_prompt += """
-السياق الحالي: مرحلة ما بعد الحكم (Post-Judgment).
-المهام المطلوبة في التوصية:
-1. المبادرة بتقديم طلب تنفيذ إلكتروني (Execution Request) عبر بوابة ناجز.
-2. التأكد من تاريخ صدور الحكم لحساب مدة الاعتراض (30 يوماً).
-3. في حال عدم السداد، التوصية بإجراءات الحجز (Asset Tracing & Freezing).
-لا تطلب من المستخدم 'البحث عن أدلة' أو 'تحقيق إضافي' فالقضية محكومة."""
-                else:
-                    system_prompt += """
-السياق الحالي: مرحلة ما قبل التقاضي/نزاع (Pre-litigation).
-المهام المطلوبة في التوصية:
-1. حصر الأدلة والأسانيد (العقود، المراسلات، تقارير الخبرة).
-2. استكمال المتطلبات النظامية حسب نوع القضية.
-3. تقدير الموقف القانوني بناءً على سوابق المحاكم العامة."""
-                
-                prompt = f"بناءً على تحليل القضية: {case_context}\n\nقدم توصية قانونية عملية واحترافية (بالعربية أولاً ثم الإنجليزية)."
-                generated_rec = self.llm.generate(prompt, system_prompt=system_prompt)
-                
-                # Global Currency Scrub
-                generated_rec = generated_rec.replace("Rs.", "SAR").replace("rupees", "SAR").replace("Rupees", "SAR")
-                
-                return {
-                    "text": generated_rec,
-                    "intent": "recommendation",
-                    "suggested_actions": [
-                        {"label": "Similar Cases | قضايا مشابهة", "action": "similar_cases"},
-                        {"label": "Full Analysis | تحليل شامل", "action": "full_analysis"}
-                    ]
-                }
-            except: pass
-
-        return {
-            "text": str(recommendation.get("recommendation_ar", "لا تتوفر توصية حالياً.")),
-            "intent": "recommendation",
-            "suggested_actions": [
-                {"label": "Draft Claim | كتابة لائحة دعوى", "action": "draft_claim"},
-                {"label": "Draft Defense | كتابة مذكرة دفاع", "action": "draft_defense"}
-            ]
-        }
-    
-    async def _handle_full_analysis(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Provide comprehensive analysis with lifecycle-aware routing (Arabic First)."""
-        clf = analysis.get("classification", {})
-        trends = analysis.get("trends", {})
-        recommendation = analysis.get("recommendation", {})
         direction = recommendation.get("direction", "").lower()
         is_judgement = direction == "decided_judgement" or "حكم" in str(recommendation.get("recommendation_ar", "")).lower() or trends.get("is_judgement", False)
         
-        ar_text = f"تحليل شامل للقضية:\n\n**التصنيف:** {clf.get('name_ar', 'N/A')}\n**معدل فوز المدعي (تاريخياً):** {trends.get('plaintiff_win_rate', 0)}%"
-        en_text = f"Comprehensive Case Analysis:\n\n**Classification:** {clf.get('name_en', 'N/A')}\n**Historical Plaintiff Win Rate:** {trends.get('plaintiff_win_rate', 0)}%"
+        target_amount = recommendation.get("award_amount", "غير محدد")
 
-        # Enterprise Routing: Hide Claim/Defense for Judgments
+        # Build professional stage-aware recommendation
+        if is_judgement:
+            header_ar = "💡 **التوصية الإجرائية (مرحلة التنفيذ والاعتراض)**"
+            advice_ar = f"""بناءً على صدور حكم في هذه القضية، التوصية كالتالي:
+1. **التنفيذ:** تقديم طلب تنفيذ إلكتروني عبر منصة (ناجز) لاستعادة المبلغ المحكوم به: **{target_amount} SAR**.
+2. **الاعتراض:** التأكد من تاريخ استلام الحكم؛ حيث أن مهلة الاعتراض هي **30 يوماً** من تاريخ التبليغ.
+3. **الإجراء الاحترازي:** حصر أصول المنفذ ضده لتسريع عملية التنفيذ."""
+            suggested_actions = [
+                {"label": "Enforcement Petition | طلب تنفيذ", "action": "draft_enforcement"},
+                {"label": "Appeal Memo | مذكرة اعتراض", "action": "draft_appeal"}
+            ]
+        else:
+            header_ar = "💡 **التوصية القانونية (مرحلة الترافع)**"
+            advice_ar = f"""بناءً على وقائع النزاع، التوصية كالتالي:
+1. **تجهيز المذكرة:** البدء في صياغة لائحة الدعوى مع التركيز على إثبات الاستحقاق للمبلغ: **{target_amount} SAR**.
+2. **البينة:** حصر كافة العقود والمراسلات المتبادلة كأدلة إثبات.
+3. **التسوية:** محاولة إجراء تسوية ودية عبر منصة (تراضي) قبل تصعيد النزاع قضائياً."""
+            suggested_actions = [
+                {"label": "Draft Claim | لائحة دعوى", "action": "draft_claim"},
+                {"label": "Draft Defense | مذكرة دفاع", "action": "draft_defense"}
+            ]
+
+        if self.llm:
+            try:
+                # LLM only for professional rephrasing, no new facts allowed
+                compressed_context = self._generate_prompt_context(analysis)
+                
+                # STRICT GROUNDING PROMPT
+                system_prompt = f"{SYSTEM_PROMPT_LEGAL}\nGROUNDING: You are in {'POST-JUDGMENT' if is_judgement else 'PRE-LITIGATION'} mode. Stick to facts."
+                prompt = f"""أعد صياغة التوصية التالية بأسلوب مهني قانوني، مع الالتزام التام بالحقائق المذكورة فقط:
+الحقائق: {compressed_context}
+التوصية الأساسية: {advice_ar}
+
+يمنع ذكر أي معلومات خارجية عن المحاكم الجنائية أو البيئية أو الزراعية. ركز فقط على المطالبة التجارية المذكورة."""
+                
+                if stream:
+                    return self.llm.generate_stream(prompt, system_prompt=system_prompt, max_new_tokens=400)
+                
+                generated_rec = self.llm.generate(prompt, system_prompt=system_prompt, max_new_tokens=400)
+                return {
+                    "text": generated_rec,
+                    "intent": "recommendation",
+                    "suggested_actions": suggested_actions
+                }
+            except Exception as e:
+                logger.error(f"Recommendation generation error: {e}")
+
+        # Fallback static response (Deterministic)
+        return {
+            "text": f"{header_ar}\n\n{advice_ar}",
+            "intent": "recommendation",
+            "suggested_actions": suggested_actions
+        }
+    
+    async def _handle_full_analysis(self, query: str, analysis: Dict) -> Dict[str, Any]:
+        """Provide comprehensive, structured analysis using professional templates."""
+        clf = analysis.get("classification", {})
+        trends = analysis.get("trends", {})
+        rec = analysis.get("recommendation", {})
+        entities = analysis.get("entities", [])
+        
+        is_judgement = rec.get("direction", "").lower() == "decided_judgement" or trends.get("is_judgement", False)
+        amount = rec.get("award_amount", "غير محدد")
+        
+        ar_header = "🔍 **التحليل القانوني الشامل للقضية**"
+        ar_body = f"""
+1. **التصنيف القضائي:** {clf.get('name_ar', 'N/A')}
+2. **نوع النزاع:** {'حكم صادر' if is_judgement else 'نزاع قيد النظر'}
+3. **القيمة المالية المرتبطة:** {amount} **SAR**
+4. **توقعات الاستحقاق:** بناءً على {trends.get('sample_size', 0)} سوابق مماثلة، تبلغ نسبة القبول في هذا النوع من القضايا **{trends.get('plaintiff_win_rate', 0)}%**.
+5. **الخلاصة:** {rec.get('recommendation_ar', 'N/A')}
+"""
+        en_text = f"""Full Analysis:
+- **Classification:** {clf.get('name_en', 'N/A')}
+- **Case Status:** {'Judged' if is_judgement else 'Pre-litigation'}
+- **Financial Interest:** {amount} **SAR**
+- **System Recommendation:** {rec.get('recommendation_en', 'N/A')}"""
+
         if is_judgement:
             suggested_actions = [
                 {"label": "Enforcement Petition | طلب تنفيذ", "action": "draft_enforcement"},
@@ -605,10 +758,10 @@ Case Classification:
             ]
 
         return {
-            "text": f"{ar_text}\n\n---\n\n{en_text}",
+            "text": f"{ar_header}\n{ar_body}\n\n---\n\n{en_text}",
             "intent": "full_analysis",
             "suggested_actions": suggested_actions,
-            "citations": self._format_case_citations(analysis.get("related_cases", []))
+            "citations": []
         }
     
     # --- STATIC LEGAL TEMPLATES ---
@@ -695,39 +848,29 @@ Case Classification:
         }
 
     async def _handle_draft_claim(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Generate a plaintiff claim draft (Enterprise Grounding)."""
+        """Generate a professional plaintiff claim draft (Non-blocking)."""
         clf = analysis.get("classification", {})
         case_type_ar = clf.get("name_ar", "غير محدد")
-        case_text = self.context.case_text or ""
-        recommendation = analysis.get("recommendation", {})
-        amount = recommendation.get("award_amount", "............")
+        case_text = (self.context.case_text or query)[:1500]
+        rec = analysis.get("recommendation", {})
+        amount = rec.get("award_amount", "............")
         
         facts_summary, legal_basis, facts_summary_en, legal_basis_en = "............", "............", "............", "............"
-        citations = []
 
         if self.llm:
             try:
-                legal_context, citations = self._get_legal_context(case_type_ar)
-                target_prompt = f"""STRICT GROUNDING TASK:
-Draft facts and legal grounds for a '{case_type_ar}' claim.
-CASE TEXT: {case_text}
-CLAIM AMOUNT: {amount} SAR
-ROLES: Plaintiff (Claimant), Defendant (Respondent).
-
-STRICT INSTRUCTIONS:
-- Use ONLY facts from the CASE TEXT.
-- Use currency 'SAR' or 'Saudi Riyals' only.
-- Do NOT invent companies, employment roles (Manager), or moral damages.
-- Do NOT flip roles.
-- Output format:
-1. ملخص الوقائع: [Arabic text]
-2. الأسانيد: [Arabic text]"""
+                legal_context, _ = self._get_legal_context(case_type_ar)
+                target_prompt = f"DRAFT CLAIM FACTS & GROUNDS:\nCASE: {case_text}\nAMOUNT: {amount} SAR\nFormat: 1. الوقائع, 2. الأسانيد"
+                system_prompt = f"{SYSTEM_PROMPT_LEGAL}\nسياق الأنظمة: {legal_context}"
                 
-                ai_output = self.llm.generate(target_prompt, system_prompt=f"أنت خبير صياغة لوائح دعوى سعودي. السياق الأنظمة: {legal_context}")
-                ai_output = self._clean_draft(ai_output, {"amount": amount})
+                # Offload blocking call to executor
+                loop = asyncio.get_running_loop()
+                ai_output = await loop.run_in_executor(
+                    self.executor,
+                    lambda: self.llm.generate(target_prompt, system_prompt=system_prompt, max_new_tokens=600)
+                )
                 
-                # Global Currency Scrub
-                ai_output = ai_output.replace("Rs.", "SAR").replace("rupees", "SAR").replace("Rupees", "SAR")
+                ai_output = ai_output.replace("Rs.", "SAR").replace("rupees", "SAR")
 
                 if "1." in ai_output and "2." in ai_output:
                     parts = ai_output.split("2.")
@@ -737,9 +880,8 @@ STRICT INSTRUCTIONS:
                 if HAS_TRANSLATOR:
                     facts_summary_en = GoogleTranslator(source='auto', target='en').translate(facts_summary[:500])
                     legal_basis_en = GoogleTranslator(source='auto', target='en').translate(legal_basis[:500])
-                    # Ensure translated currency is correct
-                    facts_summary_en = facts_summary_en.replace("Rs.", "SAR").replace("rupees", "SAR")
-            except: pass
+            except Exception as e:
+                logger.error(f"Draft claim error: {e}")
 
         final_text = self.CLAIM_TEMPLATE.format(
             court_name="المحكمة العامة", 
@@ -753,71 +895,85 @@ STRICT INSTRUCTIONS:
         return {
             "text": final_text, 
             "intent": "draft_claim", 
-            "metadata": {"is_draft": True}, 
             "suggested_actions": [
-                {"label": "Draft Defense | مذكرة دفاع", "action": "draft_defense"}, 
-                {"label": "Recommendations | التوصيات", "action": "recommendations"}
+                {"label": "Recommendations | التوصيات", "action": "recommendation"},
+                {"label": "Full Analysis | تحليل شامل", "action": "full_analysis"}
             ]
         }
 
     async def _handle_draft_defense(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Generate a defense memo draft (Enterprise Grounding)."""
+        """Generate a professional defense memo (Non-blocking)."""
         clf = analysis.get("classification", {})
         case_type_ar = clf.get("name_ar", "غير محدد")
-        case_text = self.context.case_text or ""
-        recommendation = analysis.get("recommendation", {})
-        amount = recommendation.get("award_amount", "............")
-        facts_summary, legal_basis, facts_summary_en, legal_basis_en = "............", "............", "............", "............"
+        case_text = (self.context.case_text or query)[:1500]
         
+        facts_summary, legal_basis = "............", "............"
+
         if self.llm:
             try:
                 legal_context, _ = self._get_legal_context(case_type_ar)
-                target_prompt = f"""STRICT GROUNDING TASK:
-Draft a defense response for a '{case_type_ar}' case.
-CASE TEXT: {case_text}
-ROLES: Plaintiff (Opponent), Defendant (Client).
-
-STRICT INSTRUCTIONS:
-- Use ONLY the CASE TEXT to build defenses.
-- Use currency 'SAR' or 'Saudi Riyals' only.
-- Do NOT introduce fake employment narratives.
-- Do NOT refer to the client as the 'Manager' unless explicitly in text.
-- Output format:
-1. ملخص الرد: [Arabic text]
-2. الدفوع: [Arabic text]"""
+                target_prompt = f"DRAFT DEFENSE RESPONSE:\nCASE: {case_text}\nFormat: 1. ملخص الرد, 2. الدفوع"
+                system_prompt = f"{SYSTEM_PROMPT_LEGAL}\nسياق الأنظمة: {legal_context}"
                 
-                ai_output = self.llm.generate(target_prompt, system_prompt=f"أنت محامي دفاع سعودي. السياق الأنظمة: {legal_context}")
-                ai_output = self._clean_draft(ai_output, {"amount": amount})
-                # Global Currency Scrub
-                ai_output = ai_output.replace("Rs.", "SAR").replace("rupees", "SAR").replace("Rupees", "SAR")
+                loop = asyncio.get_running_loop()
+                ai_output = await loop.run_in_executor(
+                    self.executor,
+                    lambda: self.llm.generate(target_prompt, system_prompt=system_prompt, max_new_tokens=600)
+                )
 
                 if "1." in ai_output and "2." in ai_output:
                     parts = ai_output.split("2.")
                     facts_summary = parts[0].replace("1.", "").replace("ملخص الرد:", "").strip()
                     legal_basis = parts[1].replace("الدفوع:", "").strip()
-            except: pass
+            except Exception as e:
+                logger.error(f"Draft defense error: {e}")
 
-        final_text = self.DEFENSE_TEMPLATE.format(court_name="المحكمة العامة", facts_summary=facts_summary, legal_basis=legal_basis)
+        final_text = self.DEFENSE_TEMPLATE.format(
+            court_name="المحكمة العامة", 
+            facts_summary=facts_summary, 
+            legal_basis=legal_basis
+        )
         return {
             "text": final_text, 
             "intent": "draft_defense", 
             "suggested_actions": [
-                {"label": "Draft Claim | لائحة دعوى", "action": "draft_claim"}, 
-                {"label": "Recommendations | التوصيات", "action": "recommendations"}
+                {"label": "Draft Claim | لائحة دعوى", "action": "draft_claim"},
+                {"label": "Full Analysis | تحليل شامل", "action": "full_analysis"}
             ]
         }
 
     async def _handle_draft_enforcement(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Generate an enforcement petition (Standardized)."""
-        recommendation = analysis.get("recommendation", {})
-        amount = recommendation.get("award_amount", "............")
-        final_text = self.ENFORCEMENT_TEMPLATE.format(amount=amount, facts_summary="بناءً على منطوق الحكم القاضي بإلزام المنفذ ضده بدفع المبلغ المذكور.")
-        return {"text": final_text, "intent": "draft_enforcement", "suggested_actions": [{"label": "Appeal Memo | مذكرة اعتراض", "action": "draft_appeal"}]}
+        """Generate a professional enforcement petition."""
+        rec = analysis.get("recommendation", {})
+        amount = rec.get("award_amount", "............")
+        
+        final_text = self.ENFORCEMENT_TEMPLATE.format(
+            amount=amount, 
+            facts_summary="بناءً على منطوق الحكم القاضي بإلزام المنفذ ضده بدفع المبلغ المذكور، وحيث أن الحكم اكتسب الصفة القطعية."
+        )
+        return {
+            "text": final_text, 
+            "intent": "draft_enforcement", 
+            "suggested_actions": [
+                {"label": "Appeal Memo | مذكرة اعتراض", "action": "draft_appeal"},
+                {"label": "Full Analysis | تحليل شامل", "action": "full_analysis"}
+            ]
+        }
 
     async def _handle_draft_appeal(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Generate an appeal memo (Standardized)."""
-        final_text = self.APPEAL_TEMPLATE.format(facts_summary="............ (يرجى وصف الحكم)، وأسبابه القصور في التسبيب والفساد في الاستدلال.", legal_basis="المادة 185 من نظام المرافعات الشرعية.")
-        return {"text": final_text, "intent": "draft_appeal", "suggested_actions": [{"label": "Enforcement Petition | طلب تنفيذ", "action": "draft_enforcement"}]}
+        """Generate a professional appeal memo."""
+        final_text = self.APPEAL_TEMPLATE.format(
+            facts_summary="بناءً على الحكم الصادر، وحيث أن الوقائع لم تراعى بشكل كامل، فإننا نعترض للأسباب التالية...", 
+            legal_basis="المادة 185 من نظام المرافعات الشرعية."
+        )
+        return {
+            "text": final_text, 
+            "intent": "draft_appeal", 
+            "suggested_actions": [
+                {"label": "Enforcement Petition | طلب تنفيذ", "action": "draft_enforcement"},
+                {"label": "Final Recommendation | التوصية النهائية", "action": "recommendation"}
+            ]
+        }
 
     def _clean_draft(self, text: str, facts: Dict) -> str:
         """Helper to remove hallucinations and enforce fact consistency."""

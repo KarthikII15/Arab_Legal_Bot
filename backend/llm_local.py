@@ -26,14 +26,17 @@ class LocalLLM:
 
         logger.info(f"Loading local LLM: {self.model_id}...")
         try:
+            # CPU Optimization: Lockdown to 4 threads for stable event loop concurrency
+            torch.set_num_threads(4)
+            
             # Determine device
             device = "cuda" if torch.cuda.is_available() else "cpu"
             logger.info(f"Using device: {device}")
             
             # Use pipeline for simplicity
-            # For CPU, we stick to float32 to avoid issues, unless user has specific config
             torch_dtype = torch.float16 if device == "cuda" else torch.float32
             
+            # Optimized model loading
             self.pipeline = pipeline(
                 "text-generation",
                 model=self.model_id,
@@ -41,12 +44,53 @@ class LocalLLM:
                 torch_dtype=torch_dtype,
                 model_kwargs={"low_cpu_mem_usage": True}
             )
-            logger.info("Local LLM loaded successfully.")
+            logger.info("Local LLM loaded successfully with 4 threads.")
             
         except Exception as e:
             logger.error(f"Failed to load Local LLM: {e}")
             # Fallback or re-raise? Re-raise to let caller handle it
             raise e
+
+    async def generate_stream(self, prompt: str, system_prompt: str = None, max_new_tokens=1024):
+        """
+        Asynchronous generator for streaming tokens from the LLM.
+        """
+        if not self.pipeline:
+            self.load_model()
+            
+        from transformers import TextIteratorStreamer
+        from threading import Thread
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        
+        # Build the inputs
+        input_ids = self.pipeline.tokenizer.apply_chat_template(
+            messages, 
+            tokenize=True, 
+            add_generation_prompt=True, 
+            return_tensors="pt"
+        ).to(self.pipeline.device)
+        
+        streamer = TextIteratorStreamer(self.pipeline.tokenizer, skip_prompt=True, skip_special_tokens=True)
+        
+        generation_kwargs = dict(
+            input_ids=input_ids,
+            streamer=streamer,
+            max_new_tokens=max_new_tokens,
+            do_sample=False, # DETERMINISTIC FOR CPU SPEED
+            use_cache=True,
+            temperature=None,
+            top_p=None
+        )
+        
+        thread = Thread(target=self.pipeline.model.generate, kwargs=generation_kwargs)
+        thread.start()
+        
+        for new_text in streamer:
+            yield new_text
 
     def generate(self, prompt: str, system_prompt: str = None, max_new_tokens=1024) -> str:
         """
@@ -66,9 +110,11 @@ class LocalLLM:
             outputs = self.pipeline(
                 messages,
                 max_new_tokens=max_new_tokens,
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.9,
+                do_sample=False,  # Greedy decoding for speed/stability
+                use_cache=True,
+                num_return_sequences=1,
+                pad_token_id=self.pipeline.tokenizer.eos_token_id,
+                stop_sequences=["نص النظام", "تتضمن اللوائح", "المادة الأولى", "Chapter", "Article"]
             )
             # Extract the actual generated text
             # Pipeline returns list of dicts with 'generated_text' which is the messages list + response

@@ -61,7 +61,7 @@ function App() {
         null,
         [
           { label: "Upload Case | رفع قضية", action: "upload" },
-          { label: "Case Summary | ملخص القضية", action: "case_summary" }
+          { label: "Ask Question | اسأل سؤال", action: "ask_question" }
         ]
       );
     }
@@ -143,12 +143,11 @@ function App() {
     setShowSettings(false);
   };
 
-  const addUserMessage = (text, fileData = null) => {
+  const addUserMessage = (text, displayLabel = null) => {
     const newMessage = {
       id: Date.now(),
       role: 'user',
-      content: text,
-      fileData: fileData,
+      content: displayLabel || text, // Use label for UI bubble if provided
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, newMessage]);
@@ -169,37 +168,99 @@ function App() {
     setMessages(prev => [...prev, newMessage]);
   };
 
-  const sendChatMessage = async (userMessage) => {
+  const sendChatMessage = async (userMessage, displayLabel = null) => {
     if (!userMessage.trim()) return;
 
-    const msgId = addUserMessage(userMessage);
+    const msgId = addUserMessage(userMessage, displayLabel);
     setLoading(true);
 
+    // Initial placeholder for streaming response
+    const assistantMsgId = Date.now() + 100;
+    const initialAssistantMessage = {
+      id: assistantMsgId,
+      role: 'assistant',
+      content: '', // Start empty
+      intent: 'general_inquiry',
+      citations: [],
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, initialAssistantMessage]);
+
     try {
-      const response = await axios.post(`${API_BASE}/chat`, {
-        message: userMessage,
-        analysis_data: analysis,
-        case_text: analysis ? "Case analyzed" : null
+      const response = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          analysis_data: analysis,
+          case_text: analysis ? "Case analyzed" : null
+        })
       });
+
+      if (!response.ok) throw new Error('Network response was not ok');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
+
+            if (data.type === 'start') {
+              setMessages(prev => prev.map(m => {
+                if (m.id === assistantMsgId) return { ...m, intent: data.intent };
+                return m;
+              }));
+            } else if (data.type === 'metadata' && data.user_translation) {
+              setMessages(prev => prev.map(m => {
+                if (m.id === msgId) return { ...m, translation: data.user_translation };
+                return m;
+              }));
+            } else if (data.type === 'content') {
+              fullText += data.text;
+              setMessages(prev => prev.map(m =>
+                m.id === assistantMsgId ? {
+                  ...m,
+                  content: fullText,
+                  citations: data.citations || m.citations
+                } : m
+              ));
+            } else if (data.type === 'analysis' && data.analysis_data) {
+              setAnalysis(data.analysis_data);
+            } else if (data.type === 'end') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantMsgId ? {
+                  ...m,
+                  suggested_actions: data.suggested_actions || [],
+                  citations: data.citations || m.citations
+                } : m
+              ));
+            }
+          } catch (e) {
+            console.error("Error parsing stream chunk:", e);
+          }
+        }
+      }
+
       setHealthStatus("connected");
 
-      const { text, citations, user_translation, assistant_translation, suggested_actions, intent: respIntent, analysis_data: respAnalysis } = response.data;
-
-      // Update analysis context if backend provides an updated one (auto-analysis)
-      if (respAnalysis) {
-        setAnalysis(respAnalysis);
+      // Final post-processing (cleanup, translation check, etc.)
+      const finalizedMessage = messages.find(m => m.id === assistantMsgId);
+      if (finalizedMessage && finalizedMessage.content.includes("---")) {
+        // It's already bilingual
       }
 
-      // Update user message with translation if available
-      if (user_translation) {
-        setMessages(prev => prev.map(msg =>
-          msg.id === msgId ? { ...msg, translation: user_translation } : msg
-        ));
-      }
-
-      addAssistantMessage(text, respIntent || '', citations || [], assistant_translation, suggested_actions || []);
-
-      // Add to conversations if new and no file was uploaded
+      // Add to conversations if new
       if (!currentConversationId) {
         const newConvId = Date.now();
         setCurrentConversationId(newConvId);
@@ -208,23 +269,14 @@ function App() {
           title: userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : ''),
           preview: 'محادثة نصية',
           timestamp: new Date().toISOString(),
-          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: text, translation: assistant_translation, citations: citations || [], timestamp: new Date().toISOString() }],
-          analysis: analysis
-        }, ...prev]);
-      } else if (!conversations.find(c => c.id === currentConversationId)) {
-        // Fallback for cases where ID is set but not in list
-        setConversations(prev => [{
-          id: currentConversationId,
-          title: userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : ''),
-          preview: 'محادثة نصية',
-          timestamp: new Date().toISOString(),
-          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: text, translation: assistant_translation, citations: citations || [], timestamp: new Date().toISOString() }],
+          messages: [...messages, initialAssistantMessage, { ...initialAssistantMessage, content: fullText }],
           analysis: analysis
         }, ...prev]);
       }
 
     } catch (error) {
       console.error("Chat error:", error);
+      setMessages(prev => prev.filter(m => m.id !== assistantMsgId));
       addAssistantMessage(
         "عذراً، حدث خطأ في معالجة طلبك.\n\nSorry, an error occurred processing your request.",
         "error",
@@ -260,10 +312,8 @@ function App() {
       setHealthStatus("connected");
       setSelectedFile(null);
 
-      const confidence = (response.data.classification.confidence * 100).toFixed(0);
-
       addAssistantMessage(
-        `✅ تم تحليل الملف بنجاح!\n\n📋 نوع القضية: ${response.data.classification.name_ar}\n📊 درجة الثقة: ${confidence}%\n\n---\n\n✅ File analyzed successfully!\n\n📋 Case Type: ${response.data.classification.name_en}\n📊 Confidence: ${confidence}%`,
+        `تم تحليل الملف بنجاح!\n\nنوع القضية: ${response.data.classification.name_ar}\n\n---\n\nFile analyzed successfully!\n\nCase Type: ${response.data.classification.name_en}`,
         "file_analyzed"
       );
 
@@ -276,7 +326,7 @@ function App() {
           title: response.data.classification.name_ar,
           preview: file.name,
           timestamp: new Date().toISOString(),
-          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: `✅ تم تحليل الملف بنجاح!\n\n📋 نوع القضية: ${response.data.classification.name_ar}\n📊 درجة الثقة: ${confidence}%\n\n---\n\n✅ File analyzed successfully!`, intent: "file_analyzed", timestamp: new Date().toISOString() }],
+          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: `تم تحليل الملف بنجاح!\n\nنوع القضية: ${response.data.classification.name_ar}\n\n---\n\nFile analyzed successfully!`, intent: "file_analyzed", timestamp: new Date().toISOString() }],
           analysis: response.data
         }, ...prev]);
       }
@@ -372,6 +422,17 @@ function App() {
         // Trigger file input or show prompt
         document.querySelector('input[type="file"]')?.click();
         break;
+      case 'ask_question':
+        // Focus the chat input
+        document.querySelector('textarea')?.focus();
+        break;
+      case 'retry':
+        // Find last user message
+        const userMsgs = messages.filter(m => m.role === 'user');
+        if (userMsgs.length > 0) {
+          sendChatMessage(userMsgs[userMsgs.length - 1].content);
+        }
+        break;
       case 'paste_text':
       case 'learn_more':
       case 'full_analysis':
@@ -387,8 +448,8 @@ function App() {
       case 'outcome':
       case 'compensation':
       case 'entities':
-        // Send the action string directly to trigger exact intent matching
-        sendChatMessage(action);
+        // Send the action string for backend, but show the professional label in UI
+        sendChatMessage(action, label);
         break;
       default:
         sendChatMessage(label);

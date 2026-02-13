@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from typing import List
 from models import (
     Case, SimilarityRequest, SimilarCaseResult, RelatedCase,
@@ -84,6 +85,11 @@ async def startup_event():
         chat_engine = ChatEngine()
         # Inject analysis capability into chat engine
         chat_engine.set_analyzer(execute_full_analysis)
+        
+        # Pre-load LLM weights (Optimization Strategy)
+        if chat_engine.llm:
+            logger.info("Pre-loading LLM weights into memory...")
+            chat_engine.llm.load_model()
         
         logger.info("✅ System ready. All engines loaded successfully.")
         logger.info("   🔍 Similarity Engine: READY")
@@ -427,11 +433,11 @@ async def get_analytics():
 
 # ── Chat Endpoint (NEW - Chatbot Interface) ───────────────────────────
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat")
 async def chat(request: ChatRequest):
     """
     Main chat endpoint for conversational interactions.
-    Accepts user messages and optional analysis context.
+    Now supports streaming for enhanced user experience.
     """
     global chat_engine
     
@@ -439,45 +445,18 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=503, detail="Chat engine not initialized")
     
     try:
-        logger.info(f"Chat request: {request.message[:50]}...")
-        logger.info(f"Message length: {len(request.message)}, Has analysis: {request.analysis_data is not None}")
+        logger.info(f"Chat request (streaming): {request.message[:50]}...")
         
         # Convert analysis_data if provided
         analysis_dict = request.analysis_data.dict() if request.analysis_data else None
         
-        # Process message through chat engine
-        response = await chat_engine.process_message(
-            user_message=request.message,
-            analysis_data=analysis_dict,
-            case_text=request.case_text
-        )
-        
-        # Log translation for debugging
-        if "user_translation" in response:
-            logger.info(f"User translation generated: {response['user_translation'][:50]}...")
-        else:
-            logger.warning("No user translation generated for this message.")
-        
-        logger.info(f"Detected intent: {response.get('intent')}")
-        logger.info(f"Response text (first 50 chars): {response['text'][:50]}...")
-        
-        # Convert response to ChatResponse model
-        suggested_actions = [
-            SuggestedAction(**action) if isinstance(action, dict) else action
-            for action in response.get("suggested_actions", [])
-        ]
-        
-        return ChatResponse(
-            text=response["text"],
-            intent=response["intent"],
-            suggested_actions=suggested_actions,
-            timestamp=datetime.now().isoformat(),
-            user_translation=response.get("user_translation"),
-            assistant_translation=response.get("assistant_translation"),
-            citations=response.get("citations", []),
-            metadata=response.get("metadata", {}),
-            analysis_data=response.get("analysis_data"),
-            error=response.get("error")
+        return StreamingResponse(
+            chat_engine.process_message_stream(
+                user_message=request.message,
+                analysis_data=analysis_dict,
+                case_text=request.case_text
+            ),
+            media_type="text/event-stream"
         )
         
     except Exception as e:
