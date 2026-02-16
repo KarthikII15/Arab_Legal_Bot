@@ -104,6 +104,7 @@
 
   /* ---- TYPOGRAPHY ---- */
   --font-family-body: 'Plus Jakarta Sans',
+  'IBM Plex Sans Arabic',
   'Segoe UI',
   Tahoma,
   Geneva,
@@ -244,6 +245,8 @@ body {
   line-height: var(--line-height-normal);
   font-size: var(--font-size-base);
   direction: rtl;
+  letter-spacing: 0;
+  /* Essential for connected Arabic script */
   overflow-x: hidden;
   transition: background-color var(--duration-normal) var(--timing-smooth), color var(--duration-normal) var(--timing-smooth);
 }
@@ -405,8 +408,8 @@ select {
 
 .app-header {
   grid-area: header;
-  background: #f5f8fc;
-  /* Light blue-gray background */
+  background: var(--color-primary-pale);
+  /* Matching primary pale color for consistency */
   backdrop-filter: var(--glass-backdrop);
   border-bottom: 1px solid #e0e8f0;
   box-shadow: var(--glass-shadow);

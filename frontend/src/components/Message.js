@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Copy, RotateCcw, ThumbsUp, ThumbsDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { FileAttachment } from './FileAttachment';
 
 /**
  * Message Component
@@ -47,6 +48,11 @@ export function Message({
       {/* Message Content */}
       <div className="message-bubble">
         <div className="message-text">
+          {message.fileData && (
+            <div style={{ marginBottom: '10px' }}>
+              <FileAttachment file={message.fileData} />
+            </div>
+          )}
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
 
@@ -64,57 +70,57 @@ export function Message({
         {message.citations && message.citations.length > 0 && String(message.intent || '').startsWith('draft') && (
           <div className="citations-container">
             {message.citations
-              .filter(citation => 
-                citation.source && 
-                citation.source !== 'N/A' && 
-                citation.article && 
+              .filter(citation =>
+                citation.source &&
+                citation.source !== 'N/A' &&
+                citation.article &&
                 citation.article !== 'N/A' &&
-                citation.text && 
+                citation.text &&
                 citation.text !== 'N/A'
               )
               .length > 0 && (
-              <>
-                <div className="citations-header">
-                  المصادر | Sources:
-                </div>
-                {message.citations
-                  .filter(citation => 
-                    citation.source && 
-                    citation.source !== 'N/A' && 
-                    citation.article && 
-                    citation.article !== 'N/A' &&
-                    citation.text && 
-                    citation.text !== 'N/A'
-                  )
-                  .map((citation, idx) => (
-                  <div
-                    key={idx}
-                    className="citation-card"
-                    style={{ marginBottom: '0.5rem' }}
-                  >
-                    <div className="citation-source">
-                      <span className="citation-badge">
-                        {citation.source ? citation.source.substring(0, 20) : 'Source'}
-                      </span>
-                      {citation.article && (
-                        <span className="citation-article">
-                          المادة {citation.article} | Article {citation.article}
-                        </span>
-                      )}
-                    </div>
-                    <div className="citation-text">
-                      {citation.text}
-                    </div>
-                    {citation.metadata?.judgment && (
-                      <div className="citation-judgment" style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-primary-dark)', borderLeft: '2px solid var(--color-primary)', paddingLeft: '0.5rem' }}>
-                        <strong>المنطوق:</strong> {citation.metadata.judgment}
-                        <div className="en-tiny"><strong>Ruling:</strong> {citation.metadata.judgment_en || 'Refer to translation block'}</div>
-                      </div>
-                    )}
+                <>
+                  <div className="citations-header">
+                    المصادر | Sources:
                   </div>
-                ))}
-              </>
-            )}
+                  {message.citations
+                    .filter(citation =>
+                      citation.source &&
+                      citation.source !== 'N/A' &&
+                      citation.article &&
+                      citation.article !== 'N/A' &&
+                      citation.text &&
+                      citation.text !== 'N/A'
+                    )
+                    .map((citation, idx) => (
+                      <div
+                        key={idx}
+                        className="citation-card"
+                        style={{ marginBottom: '0.5rem' }}
+                      >
+                        <div className="citation-source">
+                          <span className="citation-badge">
+                            {citation.source ? citation.source.substring(0, 20) : 'Source'}
+                          </span>
+                          {citation.article && (
+                            <span className="citation-article">
+                              المادة {citation.article} | Article {citation.article}
+                            </span>
+                          )}
+                        </div>
+                        <div className="citation-text">
+                          {citation.text}
+                        </div>
+                        {citation.metadata?.judgment && (
+                          <div className="citation-judgment" style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-primary-dark)', borderLeft: '2px solid var(--color-primary)', paddingLeft: '0.5rem' }}>
+                            <strong>المنطوق:</strong> {citation.metadata.judgment}
+                            <div className="en-tiny"><strong>Ruling:</strong> {citation.metadata.judgment_en || 'Refer to translation block'}</div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                </>
+              )}
           </div>
         )}
 

@@ -17,6 +17,9 @@ import math
 from typing import List, Dict, Optional
 from models import Case
 
+MIN_SAMPLE_FOR_WIN_RATE = 3
+MIN_SAMPLE_FOR_COMPENSATION = 3
+
 def filter_outliers(compensations: List[float]) -> List[float]:
     """
     Robust outlier filtering using median-ratio check and IQR.
@@ -212,10 +215,26 @@ def analyze_trends(cases: List[Case]) -> Dict:
         reliability = "high"
     elif sample_size >= 5:
         reliability = "medium"
-    elif sample_size >= 2:
-        reliability = "low"
     else:
+        # Enforce statistical significance: < 5 samples is insufficient
         reliability = "insufficient"
+        
+    # If insufficient data, suppress misleading "100%" win rates based on 1-2 cases
+    if reliability == "insufficient":
+        plaintiff_win_rate = 0.0
+        avg_compensation = 0.0
+        median_compensation = 0.0
+        comp_range = (0, 0)
+
+    # Compensation statistics also require their own minimum sample size.
+    if len(compensations) < MIN_SAMPLE_FOR_COMPENSATION:
+        avg_compensation = 0.0
+        median_compensation = 0.0
+        comp_range = (0, 0)
+
+    # Win-rate is hidden if decided sample is too small.
+    if decided_cases < MIN_SAMPLE_FOR_WIN_RATE:
+        plaintiff_win_rate = 0.0
     
     return {
         "outcomes": outcomes,

@@ -40,18 +40,61 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from typing import List
+import os
+import logging
+import warnings
+import json
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# --- Log Cleaning Setup ---
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3" 
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper()),
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger(__name__)
+
+# Server config
+HOST = os.getenv("HOST", "127.0.0.1")
+PORT = int(os.getenv("PORT", 5000))
+RELOAD = os.getenv("RELOAD", "true").lower() == "true"
+
+# Model config
+MODEL_PATH = os.getenv("MODEL_PATH", "./models/similarity_model")
+TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", 300))
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+import asyncio # For robust async/await checking
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from typing import List
 from models import (
     Case, SimilarityRequest, SimilarCaseResult, RelatedCase,
     SummarizeRequest, SummarizeResponse,
     AnalyzeRequest, AnalyzeResponse, CaseClassification,
     LegalPrinciple, TrendStats, Recommendation, SubType, SupportingPrinciple,
     DraftRequest, DraftResponse, QueryRequest, QueryResponse,
-    ChatRequest, ChatResponse, ChatMessage, SuggestedAction, ClearChatRequest, ConversationSummary, ArchiveRequest
+    ChatRequest, ChatResponse, ChatMessage, SuggestedAction, ClearChatRequest, ConversationSummary, ArchiveRequest,
+    SaveConversationRequest
 )
 from data_loader import load_cases
 from similarity_engine import SimilarityEngine
 from summarizer_engine import SummarizerEngine
-from classification_engine import classify_case
+from classification_engine import classify_case, classifier
 from legal_principles import extract_legal_principles
 from trend_analyzer import analyze_trends
 from recommendation_engine import generate_recommendation
@@ -60,6 +103,7 @@ from draft_engine import generate_draft
 import uvicorn
 from text_extractor import extract_text
 from chat_engine import ChatEngine
+from chat_storage import ChatStorage
 
 app = FastAPI(title="Arabic AI Legal Case Analysis Assistant", version="2.0.0")
 
@@ -117,14 +161,18 @@ async def generic_exception_handler(request: Request, exc: Exception):
 similarity_engine = None
 summarizer_engine = None
 chat_engine = None
+chat_storage = None
 all_cases_global = []  # Keep reference for trend analysis
 
 @app.on_event("startup")
 async def startup_event():
-    global similarity_engine, summarizer_engine, chat_engine, all_cases_global
+    global similarity_engine, summarizer_engine, chat_engine, chat_storage, all_cases_global
     
     logger.info("Initializing AI Legal Intelligence Platform v2.0...")
     try:
+        # Initialize Persistence Layer
+        logger.info("Initializing Persistence Layer...")
+        chat_storage = ChatStorage()
         # Load Data
         logger.info("Loading cases...")
         all_cases_global = load_cases()
@@ -134,6 +182,10 @@ async def startup_event():
         # Initialize Similarity Engine
         similarity_engine = SimilarityEngine()
         similarity_engine.build_index(real_cases) 
+        
+        # Initialize Classification Engine (Inject shared model)
+        logger.info("Initializing Classification Engine...")
+        classifier.set_model(similarity_engine.model)
         
         # Initialize Extractive Summarizer Engine
         logger.info("Loading Extractive Summarizer Engine...")
@@ -277,10 +329,16 @@ async def execute_full_analysis(text: str, top_k: int = 5) -> AnalyzeResponse:
             preview=case.facts[:200] + "..."
         ))
     
-    # Step 4: Analyze trends
+    # Step 4: Analyze trends (filtering out self-reference)
     logger.info("Step 4/5: Analyzing trends...")
-    similar_cases = [rc.case for rc in related_cases_list]
-    trends_raw = analyze_trends(similar_cases)
+    similar_cases_for_trends = []
+    for rc in related_cases_list:
+        # Check if identical (distance ~ 0) or text is identical
+        # rc.similarity_score is typically 100.0 for identical
+        if rc.similarity_score < 99.5: 
+             similar_cases_for_trends.append(rc.case)
+    
+    trends_raw = analyze_trends(similar_cases_for_trends)
     trends = TrendStats(**trends_raw)
     
     # Step 5: Generate recommendation
@@ -365,7 +423,7 @@ async def generate_legal_draft_endpoint(request: Request, draft_req: DraftReques
                 entities=draft_req.entities
             )
             
-        logger.info(f"Draft generated successfully for {request.case_type}")
+        logger.info(f"Draft generated successfully for {draft_req.case_type}")
         return draft
 
     except HTTPException:
@@ -667,6 +725,118 @@ async def archive_conversation(request: ArchiveRequest):
     except Exception as e:
         logger.error(f"Archive error: {e}")
         raise HTTPException(status_code=500, detail="Failed to archive conversation. Please try again.")
+
+
+# ── Conversation Persistence Endpoints ────────────────────────────────
+
+@app.get("/conversations")
+async def list_conversations(limit: int = 50, offset: int = 0):
+    """List recent conversations with logging."""
+    if not chat_storage:
+        logger.error("[API_LIST] Storage not initialized")
+        raise HTTPException(status_code=503, detail="Storage not initialized")
+    
+    logger.debug(f"[API_LIST] GET /conversations - limit: {limit}, offset: {offset}")
+    conversations = chat_storage.get_all_conversations(limit, offset)
+    logger.info(f"[API_LIST] Returning {len(conversations)} conversations")
+    return conversations
+
+
+@app.get("/conversations/{conversation_id}")
+async def get_conversation(conversation_id: str):
+    """Get full conversation details with logging."""
+    if not chat_storage:
+        logger.error("[API_GET] Storage not initialized")
+        raise HTTPException(status_code=503, detail="Storage not initialized")
+    
+    logger.debug(f"[API_GET] GET /conversations/{conversation_id}")
+    conv = chat_storage.get_conversation(conversation_id)
+    if not conv:
+        logger.warning(f"[API_GET] Conversation not found: {conversation_id}")
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    logger.info(f"[API_GET] Returning conversation {conversation_id}")
+    return conv
+
+
+@app.post("/conversations")
+async def save_conversation(req: SaveConversationRequest):
+    """Save or update a conversation with verification."""
+    if not chat_storage:
+        logger.error("[API_SAVE] Storage not initialized")
+        raise HTTPException(status_code=503, detail="Storage not initialized")
+    
+    logger.info(f"[API_SAVE] POST /conversations - id: {req.id}")
+    
+    # Generate detailed summary if missing or just keeping it fresh
+    summary_data = None
+    if summarizer_engine and req.messages:
+        # Generate structured summary (Topic + Points)
+        # Pass full message history so we can extract user intent
+        summary_data = summarizer_engine.summarize_chat_history(req.messages)
+        
+        # If analysis exists, refine the topic
+        if req.analysis and 'classification' in req.analysis:
+            summary_data['topic'] = req.analysis['classification'].get('name_ar', summary_data['topic'])
+
+    # Save conversation
+    success = chat_storage.save_conversation(
+        req.id, 
+        req.title, 
+        req.preview, 
+        req.messages, 
+        req.analysis,
+        summary_data # New field
+    )
+    
+    if not success:
+        logger.error(f"[API_SAVE] Failed to save conversation {req.id}")
+        raise HTTPException(status_code=500, detail="Failed to save conversation")
+    
+    # Verify the save by loading it back
+    verification = chat_storage.get_conversation(req.id)
+    if not verification:
+        logger.error(f"[API_SAVE] Verification failed - conversation not found after save: {req.id}")
+        raise HTTPException(status_code=500, detail="Conversation saved but verification failed")
+    
+    logger.info(f"[API_SAVE] Successfully saved and verified conversation {req.id}")
+    
+    return {
+        "status": "success",
+        "id": req.id,
+        "title": req.title,
+        "verification": "verified",
+        "timestamp": datetime.now().isoformat(),
+        "message_count": len(req.messages),
+        "summary": summary_data
+    }
+
+
+@app.delete("/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: str):
+    """Delete a conversation permanently."""
+    if not chat_storage:
+        raise HTTPException(status_code=503, detail="Storage not initialized")
+        
+    success = chat_storage.delete_conversation(conversation_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete conversation")
+        
+    return {"status": "deleted", "id": conversation_id}
+
+
+@app.delete("/conversations")
+async def clear_all_conversations():
+    """Clear all active conversations."""
+    if not chat_storage:
+        raise HTTPException(status_code=503, detail="Storage not initialized")
+        
+    success = chat_storage.clear_all()
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to clear history")
+        
+    return {"status": "cleared_all"}
+
 
 
 if __name__ == "__main__":

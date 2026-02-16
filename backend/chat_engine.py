@@ -9,6 +9,7 @@ import logging
 from typing import List, Dict, Optional, Any, Tuple
 from datetime import datetime
 import re
+from data_availability_validator import DataAvailabilityValidator
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,20 @@ class ChatEngine:
     def set_analyzer(self, analyzer_func):
         """Inject the full analysis pipeline function."""
         self.analyzer = analyzer_func
+
+    def _stats_flags(self, trends: Dict[str, Any]) -> Dict[str, Any]:
+        """Centralized statistical visibility rules to avoid low-sample hallucinations."""
+        sample_size = int(trends.get("sample_size", 0) or 0)
+        decided_cases = int(trends.get("decided_cases", 0) or 0)
+        compensation_count = int(trends.get("compensation_count", 0) or 0)
+        return {
+            "sample_size": sample_size,
+            "decided_cases": decided_cases,
+            "compensation_count": compensation_count,
+            "can_show_win_rate": sample_size >= 3 and decided_cases >= 3,
+            "can_show_compensation": compensation_count >= 3,
+            "can_show_trend_analysis": sample_size >= 5,
+        }
     
     def _clean_draft(self, text: str, facts: Dict[str, Any]) -> str:
         """Substitute template placeholders with actual facts."""
@@ -418,13 +433,20 @@ How can I help you today?""",
         # Currency Scrub
         rec_text_en = rec_text_en.replace("Rs.", "SAR").replace("rupees", "SAR").replace("Rupees", "SAR")
         
-        win_rate = trends.get("plaintiff_win_rate", "N/A")
-        sample_size = trends.get("sample_size", 0)
+        flags = self._stats_flags(trends)
+        win_rate = trends.get("plaintiff_win_rate", 0)
+        sample_size = flags["sample_size"]
+        if flags["can_show_win_rate"]:
+            legal_position_ar = f"بناءً على {sample_size} سوابق قضائية مماثلة، تبلغ نسبة فوز المدعي حوالي {win_rate}%."
+            legal_position_en = f"Based on {sample_size} historical precedents, the plaintiff win rate is approximately {win_rate}%."
+        else:
+            legal_position_ar = f"تم العثور على {sample_size} سوابق، لكن حجم العينة غير كافٍ لإخراج نسبة فوز موثوقة."
+            legal_position_en = f"{sample_size} precedents were found, but this sample is too small for a reliable win-rate statistic."
         
         response_ar = f"""### ملخص التحليل الاستشاري
  
 **نوع القضية:** {clf.get('name_ar', 'N/A')}
-**الموقف القانوني:** بناءً على {sample_size} سوابق قضائية مماثلة، تبلغ نسبة فوز المدعي حوالي {win_rate}%.
+**الموقف القانوني:** {legal_position_ar}
  
 **المبادئ القانونية المستند إليها:**
 {principles_text_ar}
@@ -435,7 +457,7 @@ How can I help you today?""",
         response_en = f"""### Consultative Analysis Summary
  
 **Case Type:** {clf.get('name_en', 'N/A')}
-**Legal Position:** Based on {sample_size} historical precedents, the plaintiff win rate is approximately {win_rate}%.
+**Legal Position:** {legal_position_en}
  
 **Applicable Legal Principles:**
 {principles_text_en}
@@ -482,21 +504,36 @@ Case Classification:
         trends = analysis.get("trends", {})
         classification = analysis.get("classification", {})
         rec = analysis.get("recommendation", {})
+        flags = self._stats_flags(trends)
         direction = rec.get("direction", "").lower()
         is_judgement = direction == "decided_judgement" or "حكم" in str(rec.get("recommendation_ar", "")).lower()
-        
-        win_rate = trends.get('plaintiff_win_rate', 'N/A')
-        avg_compensation = trends.get('avg_compensation', 'N/A')
-        
-        ar_comp = f"{avg_compensation} ريال" if avg_compensation != 'N/A' else "بيانات التعويض غير كافية حالياً"
-        en_comp = f"{avg_compensation} SAR" if avg_compensation != 'N/A' else "Insufficient historical compensation data available"
+
+        win_rate = trends.get("plaintiff_win_rate", 0)
+        avg_compensation = trends.get("average_compensation", 0)
+        ar_comp = (
+            f"{avg_compensation} ريال"
+            if flags["can_show_compensation"] and avg_compensation
+            else "بيانات التعويض غير كافية حالياً"
+        )
+        en_comp = (
+            f"{avg_compensation} SAR"
+            if flags["can_show_compensation"] and avg_compensation
+            else "Insufficient historical compensation data available"
+        )
         
         case_type_ar = classification.get('name_ar', 'قضيتك')
         case_type_en = classification.get('name_en', 'your case')
-        sample_size = trends.get('sample_size', 0)
+        sample_size = flags["sample_size"]
 
-        case_status_ar = f"نسبة فوز المدعي: {win_rate}%" if not is_judgement else "تم الحكم فيها"
-        case_status_en = f"Plaintiff Win Rate: {win_rate}%" if not is_judgement else "Already Judged"
+        if is_judgement:
+            case_status_ar = "تم الحكم فيها"
+            case_status_en = "Already Judged"
+        elif flags["can_show_win_rate"]:
+            case_status_ar = f"نسبة فوز المدعي: {win_rate}%"
+            case_status_en = f"Plaintiff Win Rate: {win_rate}%"
+        else:
+            case_status_ar = "حجم العينة غير كافٍ لعرض نسبة فوز موثوقة"
+            case_status_en = "Sample size is insufficient for a reliable win-rate statistic"
 
         ar_text = f"نتائج البحث عن قضايا مشابهة:\n\nلقد وجدنا قضايا مرتبطة بنوع: **{case_type_ar}**. (إجمالي العينة: {sample_size} قضايا)\n\n**الإحصائيات المستخلصة من السوابق:**\n• حالة القضية: {case_status_ar}\n• متوسط التعويض: {ar_comp}\n\n**السوابق والقرارات القضائية (مرفقة أدناه):**\nتم اختيار أهم السوابق القضائية المشابهة لحالتك والمبنية على مبادئ محاكمنا."
         en_text = f"**Similar Case Results:**\n\nWe found precedents related to: **{case_type_en}**. (Total sample: {sample_size} cases)\n\n**Extracted Trend Data:**\n• Case Status: {case_status_en}\n• Average Compensation: {en_comp}\n\n**Detailed Precedents (Listed Below):**\nWe have identified the most relevant historical decisions matching your case context."
@@ -529,10 +566,26 @@ Case Classification:
     async def _handle_trends(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Respond with trend statistics (Arabic First)."""
         trends = analysis.get("trends", {})
-        sample_size = trends.get("sample_size", 0)
-        
-        ar_text = f"الاتجاهات الإحصائية (بناءً على {sample_size} سوابق):\n\n**معدل فوز المدعي:** {trends.get('plaintiff_win_rate', 0)}%"
-        en_text = f"Trend Statistics (Based on {sample_size} cases):\n\n**Plaintiff Win Rate:** {trends.get('plaintiff_win_rate', 0)}%"
+        flags = self._stats_flags(trends)
+
+        if not flags["can_show_trend_analysis"]:
+            ar_text = (
+                f"تم العثور على {flags['sample_size']} سوابق، "
+                "لكن حجم العينة غير كافٍ لاستخراج اتجاهات إحصائية موثوقة."
+            )
+            en_text = (
+                f"Found {flags['sample_size']} precedents, but this sample is too small "
+                "for reliable trend statistics."
+            )
+        else:
+            ar_text = (
+                f"الاتجاهات الإحصائية (بناءً على {flags['sample_size']} سوابق):\n\n"
+                f"**معدل فوز المدعي:** {trends.get('plaintiff_win_rate', 0)}%"
+            )
+            en_text = (
+                f"Trend Statistics (Based on {flags['sample_size']} cases):\n\n"
+                f"**Plaintiff Win Rate:** {trends.get('plaintiff_win_rate', 0)}%"
+            )
 
         return {
             "text": f"{ar_text}\n\n---\n\n{en_text}",
@@ -553,7 +606,17 @@ Case Classification:
 
         if self.llm:
             try:
-                case_context = json.dumps({"classification": classification, "is_judgement": is_judgement, "amount": recommendation.get("award_amount")}, ensure_ascii=False)
+                case_context = {
+                    "classification": classification,
+                    "is_judgement": is_judgement,
+                    "amount": recommendation.get("award_amount"),
+                    "trends": trends,
+                    "recommendation": recommendation,
+                }
+                validator = DataAvailabilityValidator()
+                data_report = validator.generate_data_report(
+                    {"available_cases": int(trends.get("sample_size", 0) or 0)}
+                )
                 
                 system_prompt = """أنت محامي سعودي خبير بالأنظمة التجارية والمدنية والجزائية.
 يجب أن تكون التوصيات عملية وإجرائية (Actionable Advice).
@@ -575,8 +638,7 @@ Case Classification:
 2. استكمال المتطلبات النظامية حسب نوع القضية.
 3. تقدير الموقف القانوني بناءً على سوابق المحاكم العامة."""
                 
-                prompt = f"بناءً على تحليل القضية: {case_context}\n\nقدم توصية قانونية عملية واحترافية (بالعربية أولاً ثم الإنجليزية)."
-                generated_rec = self.llm.generate(prompt, system_prompt=system_prompt)
+                generated_rec = self.llm.generate_recommendations(case_context, data_report)
                 
                 # Global Currency Scrub
                 generated_rec = generated_rec.replace("Rs.", "SAR").replace("rupees", "SAR").replace("Rupees", "SAR")
@@ -591,14 +653,24 @@ Case Classification:
                 }
             except: pass
 
+        if is_judgement:
+             actions = [
+                {"label": "Enforcement Petition | طلب تنفيذ", "action": "draft_enforcement"},
+                {"label": "Appeal Memo | مذكرة اعتراض", "action": "draft_appeal"}
+             ]
+        else:
+             actions = [
+                {"label": "Draft Claim | كتابة لائحة دعوى", "action": "draft_claim"},
+                {"label": "Draft Defense | كتابة مذكرة دفاع", "action": "draft_defense"}
+             ]
+
         return {
             "text": str(recommendation.get("recommendation_ar", "لا تتوفر توصية حالياً.")),
             "intent": "recommendation",
-            "suggested_actions": [
-                {"label": "Draft Claim | كتابة لائحة دعوى", "action": "draft_claim"},
-                {"label": "Draft Defense | كتابة مذكرة دفاع", "action": "draft_defense"}
-            ]
+            "suggested_actions": actions
         }
+
+
     
     async def _handle_full_analysis(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Provide a full structured case analysis in Arabic."""
@@ -1016,9 +1088,20 @@ STRICT INSTRUCTIONS:
 
     async def _handle_outcome(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Respond about case outcome probability."""
-        win_rate = analysis.get("trends", {}).get("plaintiff_win_rate", 0)
+        trends = analysis.get("trends", {})
+        flags = self._stats_flags(trends)
+        if flags["can_show_win_rate"]:
+            text = (
+                f"نسبة فوز المدعي التقريبية: {trends.get('plaintiff_win_rate', 0)}%\n"
+                f"Approximation of Plaintiff win rate: {trends.get('plaintiff_win_rate', 0)}%"
+            )
+        else:
+            text = (
+                "البيانات المتاحة غير كافية لإظهار نسبة فوز موثوقة حالياً.\n"
+                "Available precedent data is insufficient for a reliable win-rate estimate."
+            )
         return {
-            "text": f"نسبة فوز المدعي التقريبية: {win_rate}%\nApproximation of Plaintiff win rate: {win_rate}%", 
+            "text": text,
             "intent": "outcome",
             "suggested_actions": [
                 {"label": "Detailed Recommendations | توصيات مفصلة", "action": "recommendations"},
@@ -1029,9 +1112,20 @@ STRICT INSTRUCTIONS:
     async def _handle_compensation(self, query: str, analysis: Dict) -> Dict[str, Any]:
         """Respond about compensation information."""
         trends = analysis.get("trends", {})
-        comp = trends.get('average_compensation', 0)
+        flags = self._stats_flags(trends)
+        if flags["can_show_compensation"]:
+            comp = trends.get("average_compensation", 0)
+            text = (
+                f"المعدل التاريخي للتعويضات: {comp} ر.س\n"
+                f"Historical average compensation: {comp} SAR"
+            )
+        else:
+            text = (
+                "بيانات التعويضات غير كافية لإخراج متوسط إحصائي موثوق.\n"
+                "Compensation data is insufficient for a reliable average."
+            )
         return {
-            "text": f"المعدل التاريخي للتعويضات: {comp} ر.س\nHistorical average compensation: {comp} SAR", 
+            "text": text,
             "intent": "compensation",
             "suggested_actions": [
                 {"label": "Outcome Probability | احتمالية النتيجة", "action": "outcome"},

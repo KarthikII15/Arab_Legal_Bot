@@ -11,6 +11,7 @@ pandas
 scikit-learn
 python-multipart
 pymupdf
+pdfplumber
 python-docx
 deep-translator
 accelerate

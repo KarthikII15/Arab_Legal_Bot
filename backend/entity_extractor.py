@@ -119,15 +119,24 @@ class EntityExtractor:
         clean = re.sub(r'\s+', ' ', clean)  # collapse whitespace
         
         # ═══════════════════════════════════════════════════════════
-        # 0. DOCUMENT TYPE DETECTION (sentence-level heuristics)
+        # 0. DOCUMENT TYPE DETECTION (Prioritize Judgment/Ruling)
         # ═══════════════════════════════════════════════════════════
-        judgement_signals = ["منطوق الحكم", "حكمت المحكمة", "قرار الدائرة", "أصدرت حكمها", "فلهذه الأسباب حكمت"]
-        claim_signals = ["لائحة دعوى", "يطلب المدعي", "تحريك دعوى", "أتقدم لفضيلتكم بهذه الدعوى"]
+        judgement_signals = [
+            "منطوق الحكم", "حكمت المحكمة", "قرار الدائرة", "أصدرت حكمها", 
+            "فلهذه الأسباب حكمت", "صك حكم", "رقم الصك", "تاريخ الصك",
+            "قررت الدائرة", "حكماً غيابياً", "حكماً حضورياً", "استلام الصك"
+        ]
+        claim_signals = [
+            "لائحة دعوى", "يطلب المدعي", "تحريك دعوى", "أتقدم لفضيلتكم بهذه الدعوى",
+            "موضوع الدعوى", "طلبات المدعي", "صحيفة دعوى"
+        ]
         
         judgement_count = sum(1 for s in judgement_signals if s in clean)
         claim_count = sum(1 for s in claim_signals if s in clean)
         
-        if judgement_count >= 2 or (judgement_count >= 1 and claim_count == 0):
+        # Priority: If ANY strong judgment signal exists, it's a judgment. 
+        # (Judgments often recite the claim, so claim signals are common in judgments)
+        if judgement_count >= 1:
             entities["doc_type"] = "judgement"
         elif claim_count >= 1:
             entities["doc_type"] = "claim"

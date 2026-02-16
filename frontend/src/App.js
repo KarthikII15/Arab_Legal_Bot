@@ -12,7 +12,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { RelatedCaseModal } from './components/RelatedCaseModal';
 import { jsPDF } from 'jspdf';
 import { PanelLeft, PanelRight } from 'lucide-react';
-import { getStorageItem, setStorageItem, removeStorageItem, isStorageAvailable } from './utils/storage';
+import { getStorageItem, setStorageItem, isStorageAvailable } from './utils/storage';
 
 // === AXIOS CONFIGURATION ===
 const API_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 300000);
@@ -145,31 +145,21 @@ function App() {
   const [viewingCase, setViewingCase] = useState(null);
 
   // Conversation management
-  const [conversations, setConversations] = useState(() => {
-    let loaded = getStorageItem('conversations', []);
-
-    // Migration: Sanitize history by replacing old 'case_summary' actions immediately
-    if (loaded.length > 0) {
-      loaded = loaded.map(conv => ({
-        ...conv,
-        messages: conv.messages ? conv.messages.map(msg => {
-          if (msg.suggested_actions) {
-            return {
-              ...msg,
-              suggested_actions: msg.suggested_actions.map(action =>
-                action.action === "case_summary"
-                  ? { label: "Paste Text | لصق نص", action: "paste_text" }
-                  : action
-              )
-            };
-          }
-          return msg;
-        }) : []
-      }));
-    }
-    return loaded;
-  });
+  const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
+
+  // Load conversation list from backend on mount
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        const response = await apiClient.get('/conversations');
+        setConversations(response.data);
+      } catch (error) {
+        console.error("Failed to load conversations:", error);
+      }
+    };
+    fetchConversations();
+  }, []);
 
   const messagesEndRef = useRef(null);
   const greetingSent = useRef(false);
@@ -242,21 +232,110 @@ function App() {
     setStorageItem('fontSize', fontSize);
   }, [fontSize]);
 
-  // Sync current messages/analysis to conversation list for persistence in session
+  // ------------------------------------------------------------------
+  // PERSISTENCE LOGIC (Debounced Save)
+  // ------------------------------------------------------------------
   useEffect(() => {
-    if (currentConversationId) {
-      setConversations(prev => prev.map(conv =>
-        conv.id === currentConversationId
-          ? { ...conv, messages: [...messages], analysis: analysis }
-          : conv
-      ));
-    }
-  }, [messages, analysis, currentConversationId]);
+    if (!currentConversationId || messages.length === 0) return;
 
-  // Persistence Management
-  useEffect(() => {
-    setStorageItem('conversations', conversations);
-  }, [conversations]);
+    const saveConversation = async () => {
+      try {
+        console.log('[PERSIST_START] Saving conversation:', currentConversationId);
+
+        // Prepare payload with safe defaults
+        const cleanMessages = messages.map(m => ({
+          ...m,
+          fileData: m.fileData || null,
+          citations: m.citations || [],
+          suggested_actions: m.suggested_actions || []
+        }));
+
+        // Determine title
+        const existingConv = conversations.find(c => c.id === currentConversationId);
+        let title = existingConv?.title || "محادثة جديدة";
+        let preview = "محادثة نصية";
+
+        // Auto-generate title from first user message if Untitled
+        if ((!title || title === "محادثة جديدة") && messages.some(m => m.role === 'user')) {
+          const firstUserMsg = messages.find(m => m.role === 'user');
+          if (firstUserMsg) {
+            title = firstUserMsg.content.substring(0, 40) + (firstUserMsg.content.length > 40 ? '...' : '');
+            preview = firstUserMsg.content.substring(0, 60);
+          }
+        }
+
+        // If analysis exists, use its classification as title
+        if (analysis && analysis.classification) {
+          title = analysis.classification.name_ar;
+          preview = `درجة الثقة: ${(analysis.classification.confidence * 100).toFixed(0)}%`;
+        }
+
+        console.log('[PERSIST_SEND] Posting conversation to backend:', { id: currentConversationId, title, preview });
+
+        const saveResponse = await apiClient.post('/conversations', {
+          id: String(currentConversationId),
+          title: title,
+          preview: preview,
+          messages: cleanMessages,
+          analysis: analysis || null
+        });
+
+        console.log('[PERSIST_RESPONSE] Backend confirmed:', saveResponse.data);
+
+        if (saveResponse.data.verification === 'verified') {
+          console.log('[PERSIST_VERIFIED] Conversation saved and verified by backend');
+
+          // Update local list to match (optimistic update)
+          // Update local list with backend data (including summary)
+          const savedSummary = saveResponse.data.summary;
+
+          setConversations(prev => {
+            const exists = prev.find(c => c.id === currentConversationId);
+            if (exists) {
+              console.log('[PERSIST_UPDATE_EXISTING] Updating existing conversation in list', savedSummary);
+              return prev.map(c => c.id === currentConversationId ? {
+                ...c,
+                title,
+                preview,
+                timestamp: new Date().toISOString(),
+                summary: savedSummary // Update summary from backend
+              } : c);
+            } else {
+              console.log('[PERSIST_ADD_NEW] Adding new conversation to list');
+              return [{
+                id: currentConversationId,
+                title,
+                preview,
+                timestamp: new Date().toISOString(),
+                archived: false,
+                summary: savedSummary // Add summary from backend
+              }, ...prev];
+            }
+          });
+
+          console.log('[PERSIST_SUCCESS] Conversation persistence complete');
+        } else {
+          console.warn('[PERSIST_WARNING] Backend did not return verification flag', saveResponse.data);
+        }
+
+      } catch (error) {
+        console.error('[PERSIST_ERROR] Failed to save conversation:', error);
+
+        // Provide user feedback about save failure
+        if (error.response?.status === 500) {
+          console.error('[PERSIST_ERROR] Server error - conversation may not be saved');
+        } else if (error.message.includes('timeout')) {
+          console.error('[PERSIST_ERROR] Save timeout - server not responding');
+        }
+      }
+    };
+
+    // Debounce save to avoid spamming backend on every keystroke/token
+    const timeoutId = setTimeout(saveConversation, 1000);
+    return () => clearTimeout(timeoutId);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, analysis, currentConversationId]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -275,6 +354,21 @@ function App() {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
+  const refreshConversationList = async () => {
+    // Explicitly refresh the conversation list from backend
+    try {
+      console.log('[REFRESH_LIST] Manually refreshing conversation list from backend');
+      const response = await apiClient.get('/conversations');
+      console.log('[REFRESH_LIST_SUCCESS] Retrieved', response.data.length, 'conversations');
+      setConversations(response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[REFRESH_LIST_ERROR] Failed to refresh conversation list:', error);
+      return null;
+    }
+  };
+
   const handleClearData = () => {
     setMessages([]);
     setConversations([]);
@@ -282,10 +376,13 @@ function App() {
     setSelectedFile(null);
     setCurrentConversationId(null);
     greetingSent.current = false;
-    setSelectedFile(null);
-    setCurrentConversationId(null);
-    greetingSent.current = false;
-    removeStorageItem('conversations'); // Assuming persistence might use this key later
+
+    // Call backend to wipe DB
+    apiClient.delete('/conversations').catch(err => console.error("Failed to clear backend history:", err));
+
+    // Also clear backend context
+    apiClient.post('/chat/clear', { confirm: true }).catch(err => console.error(err));
+
 
     // Send greeting again after clear
     setTimeout(() => {
@@ -333,8 +430,24 @@ function App() {
   const sendChatMessage = async (userMessage, displayMessage = null) => {
     if (!userMessage.trim()) return;
 
-    const shownMessage = (displayMessage || userMessage || '').toString().trim();
-    const msgId = addUserMessage(shownMessage);
+    let fileData = null;
+    let shownMessage = userMessage;
+
+    // Check if displayMessage is a File object (from ChatInput)
+    if (displayMessage && typeof displayMessage === 'object' && displayMessage.name) {
+      fileData = {
+        name: displayMessage.name,
+        size: displayMessage.size,
+        type: displayMessage.type
+      };
+      // Preserve the user's text message
+      shownMessage = userMessage;
+    } else if (displayMessage) {
+      // Fallback for string display overrides
+      shownMessage = displayMessage.toString().trim();
+    }
+
+    const msgId = addUserMessage(shownMessage, fileData);
     setLoading(true);
 
     try {
@@ -361,29 +474,13 @@ function App() {
 
       addAssistantMessage(text, respIntent || '', citations || [], assistant_translation, suggested_actions || []);
 
-      // Add to conversations if new and no file was uploaded
+      // If this was the first message of a new chat, ensure ID is set before saving
       if (!currentConversationId) {
-        const newConvId = Date.now();
-        setCurrentConversationId(newConvId);
-        setConversations(prev => [{
-          id: newConvId,
-          title: shownMessage.substring(0, 30) + (shownMessage.length > 30 ? '...' : ''),
-          preview: 'محادثة نصية',
-          timestamp: new Date().toISOString(),
-          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: text, translation: assistant_translation, citations: citations || [], timestamp: new Date().toISOString() }],
-          analysis: analysis
-        }, ...prev]);
-      } else if (!conversations.find(c => c.id === currentConversationId)) {
-        // Fallback for cases where ID is set but not in list
-        setConversations(prev => [{
-          id: currentConversationId,
-          title: shownMessage.substring(0, 30) + (shownMessage.length > 30 ? '...' : ''),
-          preview: 'محادثة نصية',
-          timestamp: new Date().toISOString(),
-          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: text, translation: assistant_translation, citations: citations || [], timestamp: new Date().toISOString() }],
-          analysis: analysis
-        }, ...prev]);
+        const newId = Date.now().toString();
+        setCurrentConversationId(newId);
+        // The useEffect hook will pick this up and save to backend
       }
+
 
     } catch (error) {
       console.error("Chat error:", error);
@@ -440,17 +537,11 @@ function App() {
 
       // Add to conversations if new
       if (!currentConversationId) {
-        const newConvId = Date.now();
+        const newConvId = String(Date.now());
         setCurrentConversationId(newConvId);
-        setConversations(prev => [{
-          id: newConvId,
-          title: response.data.classification.name_ar,
-          preview: file.name,
-          timestamp: new Date().toISOString(),
-          messages: [...messages, { id: Date.now() + 1, role: 'assistant', content: ` تم تحليل الملف بنجاح!\n\n نوع القضية: ${response.data.classification.name_ar}\n درجة الثقة: ${confidence}%\n\n---\n\n File analyzed successfully!`, intent: "file_analyzed", timestamp: new Date().toISOString() }],
-          analysis: response.data
-        }, ...prev]);
+        // useEffect will handle saving this new conversation state to backend
       }
+
 
     } catch (error) {
       console.error("Upload error:", error);
@@ -467,69 +558,76 @@ function App() {
     // Reset backend context
     apiClient.post('/chat/clear', { confirm: true }).catch(err => console.error(err));
 
-    const newConvId = Date.now();
-    setCurrentConversationId(newConvId);
+    setCurrentConversationId(null);
     setMessages([]);
     setAnalysis(null);
     setSelectedFile(null);
     greetingSent.current = false;
+
     // Trigger greeting again
-    addAssistantMessage(
-      "مرحباً بك!  أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n-  تحليل القضايا\n- ️ تصنيف القضايا\n-  التوصيات القانونية\n-  البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
-      "greeting",
-      [],
-      null,
-      [
-        { label: "Upload Case | رفع قضية", action: "upload" },
-        { label: "Paste Text | لصق نص", action: "paste_text" }
-      ]
-    );
+    setTimeout(() => {
+      addAssistantMessage(
+        "مرحباً بك!  أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n-  تحليل القضايا\n- ️ تصنيف القضايا\n-  التوصيات القانونية\n-  البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
+        "greeting",
+        [],
+        null,
+        [
+          { label: "Upload Case | رفع قضية", action: "upload" },
+          { label: "Paste Text | لصق نص", action: "paste_text" }
+        ]
+      );
+    }, 100);
   };
 
-  const handleSelectConversation = (convId) => {
-    const selected = conversations.find(c => c.id === convId);
-    if (selected) {
+  const handleSelectConversation = async (convId) => {
+    try {
+      setLoading(true);
+      // Fetch full conversation details from backend
+      const response = await apiClient.get(`/conversations/${convId}`);
+      const { messages: loadedMessages, analysis: loadedAnalysis } = response.data;
+
       setCurrentConversationId(convId);
-      setMessages(selected.messages || []);
-      setAnalysis(selected.analysis || null);
+      setMessages(loadedMessages || []);
+      setAnalysis(loadedAnalysis || null);
+
       // Mark greeting as sent if we have messages so it doesn't re-trigger
-      if (selected.messages && selected.messages.length > 0) {
+      if (loadedMessages && loadedMessages.length > 0) {
         greetingSent.current = true;
       }
+    } catch (error) {
+      console.error("Failed to load conversation:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDeleteConversation = (convId) => {
+
+  const handleDeleteConversation = async (convId) => {
     setConversations(prev => prev.filter(c => c.id !== convId));
+
+    try {
+      await apiClient.delete(`/conversations/${convId}`);
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+    }
+
     if (currentConversationId === convId) {
       handleNewChat();
     }
   };
 
-  const handleArchiveConversation = async (convId) => {
-    // 1. Find conversation data before removing from UI
-    const conversationToArchive = conversations.find(c => c.id === convId);
 
-    // 2. Optimistic UI update
+  const handleArchiveConversation = async (convId) => {
+    // 1. Optimistic UI update
     setConversations(prev =>
       prev.map(c => c.id === convId ? { ...c, archived: true } : c)
         .filter(c => !c.archived)
     );
 
-    if (!conversationToArchive) return;
-
-    // 3. Prepare payload (include messages if it's the current active chat)
-    const messagesToArchive = (convId === currentConversationId) ? messages : [];
-
+    // 2. Call backend to soft delete
     try {
-      await apiClient.post('/conversations/archive', {
-        conversation_id: String(convId),
-        title: conversationToArchive.title,
-        preview: conversationToArchive.preview,
-        timestamp: conversationToArchive.timestamp,
-        messages: messagesToArchive
-      });
-      console.log("Conversation archived on backend");
+      await apiClient.delete(`/conversations/${convId}`); // Using delete for now as archive endpoint logic was generic
+      console.log("Conversation archived/deleted on backend");
     } catch (error) {
       console.error("Failed to archive conversation:", error);
     }

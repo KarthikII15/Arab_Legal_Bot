@@ -176,3 +176,10 @@ class ArchiveRequest(BaseModel):
     timestamp: Optional[str] = None
     messages: Optional[List[ChatMessage]] = None
 
+class SaveConversationRequest(BaseModel):
+    id: str
+    title: str
+    preview: str
+    messages: List[Dict[str, Any]]
+    analysis: Optional[Dict[str, Any]] = None
+

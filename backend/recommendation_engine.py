@@ -15,6 +15,8 @@ Always includes judicial disclaimer.
 import math
 from typing import Dict, List, Optional
 
+MIN_SAMPLE_FOR_STATS = 5
+
 
 # ── Judicial Disclaimer ────────────────────────────────────────────────
 
@@ -35,6 +37,7 @@ def generate_recommendation(
     win_rate = trends.get("plaintiff_win_rate", 0)
     reliability = trends.get("reliability", "insufficient")
     avg_comp = trends.get("average_compensation", 0)
+    compensation_count = trends.get("compensation_count", 0)
     decided = trends.get("decided_cases", 0)
     
     doc_type = entities.get("doc_type") if entities else None
@@ -78,7 +81,7 @@ def generate_recommendation(
             "reliability": "document_final"
         }
 
-    if reliability == "insufficient":
+    if reliability == "insufficient" or sample_size < MIN_SAMPLE_FOR_STATS:
         recommendation_ar = "لا توجد سوابق كافية لتقديم توصية. يُنصح بالبحث في قواعد بيانات أوسع."
         recommendation_en = "Insufficient precedent data to provide a recommendation. Broader database search advised."
         direction = "insufficient_data"
@@ -89,7 +92,7 @@ def generate_recommendation(
         recommendation_ar = f"بناءً على تحليل {sample_size} قضية مشابهة، يُرجح نجاح المدعي بنسبة {win_rate}%."
         recommendation_en = f"Based on analysis of {sample_size} similar cases, plaintiff success is likely ({win_rate}%)."
         
-        if avg_comp > 0:
+        if avg_comp > 0 and compensation_count >= MIN_SAMPLE_FOR_STATS:
             recommendation_ar += f"\nمتوسط التعويض في القضايا المماثلة: {avg_comp:,.0f} ريال سعودي."
             recommendation_en += f"\nAverage compensation in similar cases: {avg_comp:,.0f} SAR."
     

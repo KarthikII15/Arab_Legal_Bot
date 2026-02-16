@@ -221,6 +221,40 @@ class SummarizerEngine:
                 confidence=0.0
             )
 
+    def summarize_chat_history(self, messages: list) -> dict:
+        """
+        Generate a structured summary (Topic + Key Points) from chat history.
+        """
+        try:
+            # 1. Aggregate User Messages
+            user_text = " ".join([m.get("content", "") for m in messages if m.get("role") == "user"])
+            if not user_text:
+                return {"topic": "محادثة جديدة", "points": ["لا توجد تفاصيل متاحة"]}
+            
+            # 2. Extract Topic (First significant sentence or Entity)
+            # Simple heuristic: First 60 chars or first sentence
+            topic = user_text[:60] + "..." if len(user_text) > 60 else user_text
+            
+            # 3. Extract Key Points (Top 3 sentences)
+            # Use existing extractive_summary logic
+            sentences = self.split_sentences(user_text)
+            
+            if len(sentences) <= 3:
+                points = sentences
+            else:
+                # Use SBERT to find top 3
+                summary_str = self.extractive_summary(user_text, top_k=3)
+                points = summary_str.split('\n')
+            
+            return {
+                "topic": "استشارة قانونية عامة", # Placeholder, will be refined if analysis exists
+                "points": [p.strip() for p in points if p.strip()]
+            }
+            
+        except Exception as e:
+            print(f"Chat summary error: {e}")
+            return {"topic": "خطأ في التلخيص", "points": []}
+
 
 if __name__ == "__main__":
     engine = SummarizerEngine()

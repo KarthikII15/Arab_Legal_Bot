@@ -142,3 +142,60 @@ class LocalLLM:
         except Exception as e:
             logger.error("LLM generation error: %r", e, exc_info=True)
             return "Sorry, a model generation error occurred."
+
+    def generate_recommendations(self, case_analysis: dict, data_availability: dict) -> str:
+        """Generate recommendation text with strict anti-hallucination instructions."""
+        data_context = self._build_data_availability_context(data_availability)
+        prompt = (
+            "Based on the case analysis below, provide recommendation guidance.\n\n"
+            "IMPORTANT DATA AVAILABILITY:\n"
+            f"{data_context}\n\n"
+            "CASE ANALYSIS:\n"
+            f"{case_analysis}\n\n"
+            "RULES:\n"
+            "1) Never invent statistics or percentages.\n"
+            "2) Use only provided values.\n"
+            "3) If insufficient data, explicitly say so and provide principle-based guidance only.\n"
+            "4) Do not imply trend certainty without sample support.\n"
+            "5) Separate data-driven claims from general legal guidance.\n"
+        )
+        output = self.generate(prompt, system_prompt=self._get_safe_analysis_system_prompt())
+
+        # Optional post-generation validation guard.
+        try:
+            from llm_output_validator import LLMOutputValidator
+
+            validator = LLMOutputValidator(data_availability)
+            check = validator.validate_output(output)
+            if not check.get("is_valid", True):
+                return (
+                    "Insufficient validated data for statistical statements. "
+                    "Providing only principle-based recommendation guidance."
+                )
+        except Exception:
+            # Keep runtime robust if validator is unavailable.
+            pass
+        return output
+
+    def _build_data_availability_context(self, data_availability: dict) -> str:
+        total_cases = int(data_availability.get("total_cases_available", 0))
+        possible = data_availability.get("statistics_possible", [])
+        impossible = data_availability.get("statistics_impossible", {})
+        possible_text = "\n".join(f"- {item}" for item in possible) if possible else "- None"
+        impossible_text = (
+            "\n".join(f"- {k} (min {v})" for k, v in impossible.items())
+            if impossible
+            else "- None"
+        )
+        return (
+            f"Total cases available: {total_cases}\n"
+            f"Statistics possible:\n{possible_text}\n"
+            f"Statistics not possible:\n{impossible_text}"
+        )
+
+    def _get_safe_analysis_system_prompt(self) -> str:
+        return (
+            "You are a legal analysis assistant focused on accuracy.\n"
+            "Do not fabricate statistics, case counts, rates, or precedent claims.\n"
+            "When data is insufficient, state this clearly and provide general legal principles only.\n"
+        )

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import { Plus, MessageSquare, Trash2, Archive, X } from 'lucide-react';
+import './TooltipStyles.css'; // Import tooltip styles
 
 /**
  * Sidebar Component
@@ -16,6 +18,8 @@ export function Sidebar({
 }) {
   const [searchText, setSearchText] = useState('');
   const [showContextMenu, setShowContextMenu] = useState(null);
+  const [hoveredConvId, setHoveredConvId] = useState(null);
+  const [hoverPos, setHoverPos] = useState({ top: 0, right: 0 });
 
   const filteredConversations = conversations.filter(conv =>
     conv.title?.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -89,12 +93,24 @@ export function Sidebar({
               key={conv.id}
               className={`conversation-item ${currentId === conv.id ? 'active' : ''}`}
               onClick={() => onSelect(conv.id)}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoverPos({
+                  top: rect.top + (rect.height / 2),
+                  right: window.innerWidth - rect.left + 10 // Position to the left of the item
+                });
+                setHoveredConvId(conv.id);
+              }}
+              onMouseLeave={() => setHoveredConvId(null)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 setShowContextMenu(conv.id);
               }}
             >
               <MessageSquare size={16} className="conversation-icon" />
+
+              {/* Tooltip Removed form here - Handled outside loop via Portal-like div */}
+
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="conversation-title">
                   {conv.title || (
@@ -203,6 +219,45 @@ export function Sidebar({
             </div>
           </button>
         </div>
+      )}
+      {/* Global Tooltip Rendering (Portal) */}
+      {hoveredConvId && (
+        (() => {
+          const conv = conversations.find(c => c.id === hoveredConvId);
+          if (!conv) return null;
+          return ReactDOM.createPortal(
+            <div
+              className="conversation-tooltip fixed-tooltip"
+              style={{
+                top: hoverPos.top,
+                right: hoverPos.right
+              }}
+            >
+              {conv.summary ? (
+                <>
+                  <div className="tooltip-title">{conv.summary.topic || conv.title}</div>
+                  <div className="tooltip-points">
+                    <ul style={{ paddingRight: '1rem', margin: 0, fontSize: '0.75rem', lineHeight: '1.4' }}>
+                      {conv.summary.points && conv.summary.points.length > 0 ? (
+                        conv.summary.points.map((point, idx) => (
+                          <li key={idx}>{point}</li>
+                        ))
+                      ) : (
+                        <li>لا توجد نقاط رئيسية</li>
+                      )}
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="tooltip-title">{conv.title || 'محادثة بدون عنوان'}</div>
+                  <div className="tooltip-preview">{conv.preview || 'لا يوجد ملخص متاح | No summary available'}</div>
+                </>
+              )}
+            </div>,
+            document.body // Render at body root to break z-index/overflow issues from sidebar
+          );
+        })()
       )}
     </aside>
   );

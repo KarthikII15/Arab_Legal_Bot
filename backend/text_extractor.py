@@ -15,34 +15,58 @@ logger = logging.getLogger(__name__)
 
 
 def extract_from_pdf(file_bytes: bytes) -> str:
-    """Extract text from PDF bytes using PyMuPDF."""
+    """
+    Extract text from PDF using pdfplumber (better for Arabic/RTL) 
+    with a fallback to PyMuPDF.
+    """
+    import io
+    
+    # Method 1: pdfplumber (Better for RTL/Arabic logical order)
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            text_parts = []
+            for page in pdf.pages:
+                # extract_text usually handles layout better than simple string extraction
+                page_text = page.extract_text()
+                if page_text:
+                    text_parts.append(page_text)
+            
+            if text_parts:
+                full_text = "\n\n".join(text_parts)
+                logger.info(f"Extracted {len(full_text)} chars using pdfplumber")
+                return full_text
+    except ImportError:
+        logger.warning("pdfplumber not found, falling back to PyMuPDF")
+    except Exception as e:
+        logger.error(f"pdfplumber extraction failed: {e}, falling back to PyMuPDF")
+
+    # Method 2: PyMuPDF (Faster, good fallback)
     try:
         import fitz  # PyMuPDF
-    except ImportError:
-        raise ImportError("PyMuPDF not installed. Run: pip install pymupdf")
-    
-    doc = fitz.open(stream=file_bytes, filetype="pdf")
-    text_parts = []
-    seen_content = set() # To detect duplicate repeated pages
-    
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        text = page.get_text("text").strip()
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        text_parts = []
+        seen_content = set() 
         
-        if text:
-            # Hash or simplify text to detect identical content
-            # (In legal docs, identical pages are usually error templates)
-            content_fingerprint = " ".join(text.split())[:1000] # Normalize for comparison
-            if content_fingerprint not in seen_content:
-                text_parts.append(text)
-                seen_content.add(content_fingerprint)
-            else:
-                logger.warning(f"Skipping duplicate page {page_num+1} in PDF")
-    
-    full_text = "\n\n".join(text_parts)
-    logger.info(f"Extracted {len(full_text)} chars from {len(text_parts)} unique pages (Total: {len(doc)})")
-    doc.close()
-    return full_text
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            # "text" mode is standard, but for Arabic sometimes "blocks" with sorting helps
+            # However, sticking to standard text for now as baseline
+            text = page.get_text("text").strip()
+            
+            if text:
+                content_fingerprint = " ".join(text.split())[:1000]
+                if content_fingerprint not in seen_content:
+                    text_parts.append(text)
+                    seen_content.add(content_fingerprint)
+        
+        full_text = "\n\n".join(text_parts)
+        doc.close()
+        logger.info(f"Extracted {len(full_text)} chars usinig PyMuPDF")
+        return full_text
+    except Exception as e:
+        logger.error(f"PyMuPDF extraction failed: {e}")
+        raise ValueError("Failed to extract text from PDF using both pdfplumber and PyMuPDF")
 
 
 def extract_from_docx(file_bytes: bytes) -> str:
