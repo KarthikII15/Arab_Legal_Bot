@@ -121,4 +121,29 @@ FILES_DIRECTORY_GUIDE.md
 IMPLEMENTATION_GUIDE.md
 LAYOUT_WIREFRAMES_GUIDE.md
 PHASE_2_*.md
+AUDIT_REPORT.md
+SECURITY_AUDIT_REPORT.md
+SYSTEM_AUDIT_REPORT.md
+CHATBOT_GUIDE.md
+PROJECT_PLAN.md
+TEST_CASES.md
+UI_UX_ENHANCEMENT_ROADMAP.md
+WEEK_1_COMPLETION_REPORT.md
+PRIORITY_FIXES_DETAILED.md
+README_DELIVERABLES.md
+QUICK_START_CHECKLIST.md
+ARCHITECTURE.md
 
+# Persistence and DB
+backend/data/*.db
+backend/data/*.db-journal
+
+# Temporary & Random Root Files
+*.txt
+!requirements.txt
+!backend/requirements.txt
+app_js_diff.txt
+PRODUCTION_COMPONENTS.jsx
+PRODUCTION_CSS_ENHANCEMENTS.css
+test_classification_import.py
+backend/test_*.py
