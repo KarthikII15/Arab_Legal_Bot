@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-const API_BASE = "http://127.0.0.1:5000";
+const API_BASE = "/api";
 
 export const useChatEngine = () => {
     // Chat State
