@@ -16,17 +16,10 @@ def download_models():
     model.save(sim_path)
     print(f"Saved to {sim_path}")
 
-    # 2. Summarization Model
-    # Switching to a fine-tuned summarization model as per user recommendation to fix hallucinations
-    sum_model_name = "csebuetnlp/mT5_multilingual_XLSum"
-    sum_path = os.path.join(MODEL_DIR, "summarizer_model")
-    print(f"Downloading {sum_model_name}...")
-    tokenizer = AutoTokenizer.from_pretrained(sum_model_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(sum_model_name)
-    
-    tokenizer.save_pretrained(sum_path)
-    model.save_pretrained(sum_path)
-    print(f"Saved to {sum_path}")
+    # 2. Summarization Model (Extractive - reused from SBERT)
+    # The system uses the SBERT model for extractive summarization to ensure factual consistency.
+    # No separate generative model (like mT5) is required.
+
 
     # 3. Local LLM (Qwen)
     llm_model_name = "Qwen/Qwen2.5-1.5B-Instruct"
