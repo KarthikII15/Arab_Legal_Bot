@@ -40,48 +40,6 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from typing import List
-import os
-import logging
-import warnings
-import json
-from datetime import datetime
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-
-# --- Log Cleaning Setup ---
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3" 
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-
-warnings.filterwarnings("ignore", category=UserWarning)
-warnings.filterwarnings("ignore", category=FutureWarning)
-
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper()),
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S"
-)
-logger = logging.getLogger(__name__)
-
-# Server config
-HOST = os.getenv("HOST", "127.0.0.1")
-PORT = int(os.getenv("PORT", 5000))
-RELOAD = os.getenv("RELOAD", "true").lower() == "true"
-
-# Model config
-MODEL_PATH = os.getenv("MODEL_PATH", "./models/similarity_model")
-TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", 300))
-
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-import asyncio # For robust async/await checking
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-from typing import List
 from models import (
     Case, SimilarityRequest, SimilarCaseResult, RelatedCase,
     SummarizeRequest, SummarizeResponse,
