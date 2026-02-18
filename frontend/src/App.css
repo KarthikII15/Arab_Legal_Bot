@@ -408,7 +408,8 @@ select {
 
 .app-header {
   grid-area: header;
-  background: var(--color-primary-pale);
+  background: #d1fae5;
+  /* Emerald 100 - Increased from #ecfdf5 */
   /* Matching primary pale color for consistency */
   backdrop-filter: var(--glass-backdrop);
   border-bottom: 1px solid #e0e8f0;
@@ -425,8 +426,8 @@ select {
 
 .app-sidebar {
   grid-area: sidebar;
-  background: #f5f8fc;
-  /* Light blue-gray background */
+  background: #d1fae5;
+  /* Emerald 100 - Matching Header */
   backdrop-filter: var(--glass-backdrop);
   border-right: 1px solid #e0e8f0;
   box-shadow: var(--glass-shadow);
