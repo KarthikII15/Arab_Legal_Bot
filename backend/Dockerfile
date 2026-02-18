@@ -1,5 +1,5 @@
-# Use an official Python runtime as a parent image
-FROM python:3.10-slim-bullseye
+# Use PyTorch base image to avoid downloading 2GB+ of torch libraries during build
+FROM pytorch/pytorch:2.1.2-cuda12.1-cudnn8-runtime
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
