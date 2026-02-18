@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    # REPLACE WITH YOUR GITHUB USERNAME & PACKAGE NAME
+    # Example: ghcr.io/your_username/legal-assistant-backend:latest
+    image: ghcr.io/YOUR_GITHUB_USERNAME/legal-assistant-backend:latest
+    container_name: legal-assistant-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5000
+      - CORS_ORIGINS=http://localhost,http://localhost:3000
+      - LLM_NUM_THREADS=4
+    volumes:
+      # ONLY persist data, do not mount code or models
+      - backend_data:/app/data
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 12G
+        reservations:
+          memory: 4G
+
+  frontend:
+    # REPLACE WITH YOUR GITHUB USERNAME & PACKAGE NAME
+    image: ghcr.io/YOUR_GITHUB_USERNAME/legal-assistant-frontend:latest
+    container_name: legal-assistant-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  backend_data:
