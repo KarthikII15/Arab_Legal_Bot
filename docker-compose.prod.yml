@@ -4,7 +4,7 @@ services:
   backend:
     # REPLACE WITH YOUR GITHUB USERNAME & PACKAGE NAME
     # Example: ghcr.io/your_username/legal-assistant-backend:latest
-    image: ghcr.io/YOUR_GITHUB_USERNAME/legal-assistant-backend:latest
+    image: ghcr.io/karthikii15/legal-assistant-backend:latest
     container_name: legal-assistant-backend
     ports:
       - "5000:5000"
@@ -26,7 +26,7 @@ services:
 
   frontend:
     # REPLACE WITH YOUR GITHUB USERNAME & PACKAGE NAME
-    image: ghcr.io/YOUR_GITHUB_USERNAME/legal-assistant-frontend:latest
+    image: ghcr.io/karthikii15/legal-assistant-frontend:latest
     container_name: legal-assistant-frontend
     ports:
       - "80:80"
