@@ -19,7 +19,8 @@ const API_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 300000);
 axios.defaults.timeout = API_TIMEOUT_MS; // Default 5 minutes for local LLM workloads
 
 // Define API_BASE here to use in apiClient creation
-const API_BASE = "http://127.0.0.1:5000";
+// const API_BASE = "http://127.0.0.1:5000";
+const API_BASE = "http://34.230.33.126:5000"
 
 // Create axios instance with defaults
 const apiClient = axios.create({
