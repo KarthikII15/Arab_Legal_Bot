@@ -18,8 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
+# Copy requirements from backend/ and install dependencies
+COPY backend/requirements.txt .
 
 # Install CPU-only PyTorch first to avoid downloading large CUDA versions
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -29,8 +29,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
-# Create required directories (models for ML models, data for SQLite DB)
-RUN mkdir -p models data
+# Ensure models and db directories exist
+RUN mkdir -p models /app/db
 
 # Download models during build to bake them into the image
 RUN python download_models.py
@@ -40,3 +40,4 @@ EXPOSE 5000
 
 # Command to run the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]
+

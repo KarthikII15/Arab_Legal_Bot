@@ -13,11 +13,11 @@ services:
       - PORT=5000
       - CORS_ORIGINS=http://localhost,http://localhost:3000
       - LLM_NUM_THREADS=4
-      # SQLite database path (must match the volume mount below)
-      - DB_PATH=/app/data/chat_history.db
+      # SQLite DB lives in /app/db (separate from /app/data which holds the dataset)
+      - DB_PATH=/app/db/chat_history.db
     volumes:
-      # ONLY persist data, do not mount code or models
-      - backend_data:/app/data
+      # Persist SQLite DB in /app/db — does NOT shadow /app/data (dataset lives there)
+      - backend_db:/app/db
     restart: always
     deploy:
       resources:
@@ -26,15 +26,7 @@ services:
         reservations:
           memory: 4G
 
-  frontend:
-    # REPLACE WITH YOUR GITHUB USERNAME & PACKAGE NAME
-    image: ghcr.io/karthikii15/legal-assistant-frontend:latest
-    container_name: legal-assistant-frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    restart: always
-
 volumes:
-  backend_data:
+  backend_db:
+
+

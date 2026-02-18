@@ -9,34 +9,22 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=5000
-      - CORS_ORIGINS=http://localhost,http://localhost:3000,http://frontend
-      # Adjust threads based on CPU cores (e.g., 4 for typical dev machine)
+      - CORS_ORIGINS=http://localhost,http://localhost:3000
       - LLM_NUM_THREADS=4
-      # SQLite database path (must match the volume mount below)
-      - DB_PATH=/app/data/chat_history.db
+      # SQLite DB lives in /app/db (separate from /app/data which holds the dataset)
+      - DB_PATH=/app/db/chat_history.db
     volumes:
-      # Mount models from host to avoid re-downloading during dev (optional)
-      # - ./backend/models:/app/models
-      # Persist SQLite database (chat_history.db lives inside /app/data)
-      - backend_data:/app/data
+      # Persist SQLite DB in /app/db — does NOT shadow /app/data (dataset lives there)
+      - backend_db:/app/db
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 8G # Limit memory to avoid system crash (adjust based on host)
+          memory: 8G
         reservations:
           memory: 4G
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: legal-assistant-frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
 volumes:
-  backend_data:
+  backend_db:
+
+

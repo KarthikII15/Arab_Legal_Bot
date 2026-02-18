@@ -1,9 +1,29 @@
 import json
 import os
+import logging
 from typing import List, Dict
 from models import Case
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/saudi_general_court_judgments.json")
+logger = logging.getLogger(__name__)
+
+# Search for the dataset in order of likelihood
+_search_paths = [
+    os.path.join(os.path.dirname(__file__), "dataset", "laws", "saudi_general_court_judgments.json"), # New preferred location
+    "/app/data/saudi_general_court_judgments.json",  # Docker absolute (legacy fallback)
+    os.path.join(os.path.dirname(__file__), "data", "saudi_general_court_judgments.json"),  # Docker relative (legacy fallback)
+    os.path.join(os.path.dirname(__file__), "..", "data", "saudi_general_court_judgments.json"),  # Local dev relative
+]
+
+DATA_PATH = None
+for p in _search_paths:
+    if os.path.exists(p):
+        DATA_PATH = p
+        break
+
+if not DATA_PATH:
+    # If not found, use the standard relative path for the error message
+    DATA_PATH = _search_paths[2]
+
 
 def load_cases(filter_real_only: bool = False) -> List[Case]:
     """
