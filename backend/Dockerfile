@@ -1,5 +1,5 @@
-# Use PyTorch base image to avoid downloading 2GB+ of torch libraries during build
-FROM pytorch/pytorch:2.1.2-cuda12.1-cudnn8-runtime
+# Use a lightweight Python base image
+FROM python:3.10-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -11,7 +11,7 @@ ENV HOST=0.0.0.0
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgl1-mesa-glx \
     libglib2.0-0 \
@@ -19,7 +19,10 @@ RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies
 COPY requirements.txt .
+
+# Install CPU-only PyTorch first to avoid downloading large CUDA versions
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
@@ -29,7 +32,6 @@ COPY . .
 RUN mkdir -p models
 
 # Download models during build to bake them into the image
-# This increases image size but ensures faster startup without runtime downloads
 RUN python download_models.py
 
 # Expose the port

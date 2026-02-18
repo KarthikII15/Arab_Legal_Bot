@@ -1,11 +1,11 @@
 # Stage 1: Build the React Application
-FROM node:18-alpine as build
+FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (use npm install to be more lenient than ci)
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 # Copy source code and build
 COPY . .
