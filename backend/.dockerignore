@@ -12,3 +12,6 @@ conversations_archive.json
 Dockerfile
 docker-compose.yml
 README.md
+# Exclude local SQLite database and data directory
+data/
+*.db

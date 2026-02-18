@@ -13,6 +13,8 @@ services:
       - PORT=5000
       - CORS_ORIGINS=http://localhost,http://localhost:3000
       - LLM_NUM_THREADS=4
+      # SQLite database path (must match the volume mount below)
+      - DB_PATH=/app/data/chat_history.db
     volumes:
       # ONLY persist data, do not mount code or models
       - backend_data:/app/data

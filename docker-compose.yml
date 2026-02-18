@@ -12,10 +12,12 @@ services:
       - CORS_ORIGINS=http://localhost,http://localhost:3000,http://frontend
       # Adjust threads based on CPU cores (e.g., 4 for typical dev machine)
       - LLM_NUM_THREADS=4
+      # SQLite database path (must match the volume mount below)
+      - DB_PATH=/app/data/chat_history.db
     volumes:
       # Mount models from host to avoid re-downloading during dev (optional)
       # - ./backend/models:/app/models
-      # Persist SQLite database
+      # Persist SQLite database (chat_history.db lives inside /app/data)
       - backend_data:/app/data
     restart: unless-stopped
     deploy:

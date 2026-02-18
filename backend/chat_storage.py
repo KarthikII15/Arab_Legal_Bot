@@ -7,7 +7,10 @@ from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "chat_history.db")
+DB_PATH = os.environ.get(
+    "DB_PATH",
+    os.path.join(os.path.dirname(__file__), "data", "chat_history.db")
+)
 
 class ChatStorage:
     def __init__(self, db_path: str = DB_PATH):

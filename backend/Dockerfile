@@ -29,8 +29,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
-# Create models directory
-RUN mkdir -p models
+# Create required directories (models for ML models, data for SQLite DB)
+RUN mkdir -p models data
 
 # Download models during build to bake them into the image
 RUN python download_models.py
