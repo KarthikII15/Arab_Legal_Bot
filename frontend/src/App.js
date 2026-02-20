@@ -13,14 +13,15 @@ import { RelatedCaseModal } from './components/RelatedCaseModal';
 import { jsPDF } from 'jspdf';
 import { PanelLeft, PanelRight } from 'lucide-react';
 import { getStorageItem, setStorageItem, isStorageAvailable } from './utils/storage';
+import { getUiText } from './i18n/uiText';
 
 // === AXIOS CONFIGURATION ===
 const API_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 300000);
 axios.defaults.timeout = API_TIMEOUT_MS; // Default 5 minutes for local LLM workloads
 
 // Define API_BASE — uses nginx proxy (/api → http://localhost:5000)
-// const API_BASE = "http://127.0.0.1:5000";  // local dev direct
-const API_BASE = "/api";
+const API_BASE = "http://127.0.0.1:5000";  // local dev direct
+// const API_BASE = "/api";
 
 // Create axios instance with defaults
 const apiClient = axios.create({
@@ -143,7 +144,27 @@ function App() {
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
   const [fontSize, setFontSize] = useState(() => getStorageItem('fontSize', 'medium'));
+  const [language, setLanguage] = useState(() => getStorageItem('language', 'ar'));
   const [viewingCase, setViewingCase] = useState(null);
+  const uiText = getUiText(language);
+
+  const getGreetingPayload = () => {
+    const arUi = getUiText('ar');
+    const enUi = getUiText('en');
+    return {
+      text: `${arUi.emptyWelcomeTitle}\n\n${arUi.emptyWelcomeSubtitle}`,
+      translation: `${enUi.emptyWelcomeTitle}\n\n${enUi.emptyWelcomeSubtitle}`,
+      actions: [
+        { label: 'Upload Case | \u0631\u0641\u0639 \u0642\u0636\u064a\u0629', action: 'upload' },
+        { label: 'Paste Text | \u0644\u0635\u0642 \u0646\u0635', action: 'paste_text' }
+      ]
+    };
+  };
+
+  const pushGreetingMessage = () => {
+    const greeting = getGreetingPayload();
+    addAssistantMessage(greeting.text, 'greeting', [], greeting.translation, greeting.actions);
+  };
 
   // Conversation management
   const [conversations, setConversations] = useState([]);
@@ -205,16 +226,7 @@ function App() {
   useEffect(() => {
     if (!greetingSent.current && messages.length === 0) {
       greetingSent.current = true;
-      addAssistantMessage(
-        "مرحباً بك!  أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n-  تحليل القضايا\n- ️ تصنيف القضايا\n-  التوصيات القانونية\n-  البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
-        "greeting",
-        [],
-        null,
-        [
-          { label: "Upload Case | رفع قضية", action: "upload" },
-          { label: "Paste Text | لصق نص", action: "paste_text" }
-        ]
-      );
+      pushGreetingMessage();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -232,6 +244,14 @@ function App() {
     document.documentElement.setAttribute('data-font-size', fontSize);
     setStorageItem('fontSize', fontSize);
   }, [fontSize]);
+
+  // Language Management
+  useEffect(() => {
+    document.documentElement.setAttribute('data-language', language);
+    document.documentElement.setAttribute('lang', language === 'ar' ? 'ar' : 'en');
+    document.documentElement.setAttribute('dir', 'rtl');
+    setStorageItem('language', language);
+  }, [language]);
 
   // ------------------------------------------------------------------
   // PERSISTENCE LOGIC (Debounced Save)
@@ -387,16 +407,7 @@ function App() {
 
     // Send greeting again after clear
     setTimeout(() => {
-      addAssistantMessage(
-        "مرحباً بك!  أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n-  تحليل القضايا\n- ️ تصنيف القضايا\n-  التوصيات القانونية\n-  البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
-        "greeting",
-        [],
-        null,
-        [
-          { label: "Upload Case | رفع قضية", action: "upload" },
-          { label: "Paste Text | لصق نص", action: "paste_text" }
-        ]
-      );
+      pushGreetingMessage();
     }, 500);
 
     setShowSettings(false);
@@ -486,9 +497,13 @@ function App() {
     } catch (error) {
       console.error("Chat error:", error);
 
-      let errorMessage = "عذراً، حدث خطأ في معالجة طلبك.\n\nSorry, an error occurred processing your request.";
+      let errorMessage = language === 'ar'
+        ? "عذراً، حدث خطأ في معالجة طلبك."
+        : "Sorry, an error occurred processing your request.";
       if (error.message.includes('timeout')) {
-        errorMessage = "️ انتهت مهلة الاتصال. الخادم لا يستجيب.\n\nConnection timeout. Server is not responding.";
+        errorMessage = language === 'ar'
+          ? "انتهت مهلة الاتصال. الخادم لا يستجيب."
+          : "Connection timeout. Server is not responding.";
         setHealthStatus("timeout");
       } else {
         setHealthStatus("error");
@@ -500,8 +515,8 @@ function App() {
         [],
         null,
         [
-          { label: "Try Again | حاول مرة أخرى", action: "retry" },
-          { label: "Upload Case | رفع قضية", action: "upload" }
+          { label: language === 'ar' ? 'حاول مرة أخرى' : 'Try Again', action: "retry" },
+          { label: language === 'ar' ? 'رفع قضية' : 'Upload Case', action: "upload" }
         ]
       );
     } finally {
@@ -511,7 +526,7 @@ function App() {
 
   const handleFileUpload = async (file) => {
     setSelectedFile(file);
-    addUserMessage(`رفع الملف: ${file.name}`, {
+    addUserMessage(`${language === 'ar' ? 'رفع الملف' : 'Uploaded file'}: ${file.name}`, {
       name: file.name,
       size: file.size
     });
@@ -531,10 +546,13 @@ function App() {
 
       const confidence = (response.data.classification.confidence * 100).toFixed(0);
 
-      addAssistantMessage(
-        ` تم تحليل الملف بنجاح!\n\n نوع القضية: ${response.data.classification.name_ar}\n درجة الثقة: ${confidence}%\n\n---\n\n File analyzed successfully!\n\n Case Type: ${response.data.classification.name_en}\n Confidence: ${confidence}%`,
-        "file_analyzed"
-      );
+      const caseType = language === 'ar'
+        ? response.data.classification.name_ar
+        : response.data.classification.name_en;
+      const fileAnalyzedMessage = language === 'ar'
+        ? `تم تحليل الملف بنجاح!\n\nنوع القضية: ${caseType}\nدرجة الثقة: ${confidence}%`
+        : `File analyzed successfully!\n\nCase type: ${caseType}\nConfidence: ${confidence}%`;
+      addAssistantMessage(fileAnalyzedMessage, "file_analyzed");
 
       // Add to conversations if new
       if (!currentConversationId) {
@@ -546,10 +564,11 @@ function App() {
 
     } catch (error) {
       console.error("Upload error:", error);
-      addAssistantMessage(
-        ` خطأ في رفع الملف\n\n${error.response?.data?.detail || error.message}\n\nError uploading file`,
-        "error"
-      );
+      const uploadError = error.response?.data?.detail || error.message;
+      const uploadErrorMessage = language === 'ar'
+        ? `خطأ في رفع الملف\n\n${uploadError}`
+        : `Error uploading file\n\n${uploadError}`;
+      addAssistantMessage(uploadErrorMessage, "error");
     } finally {
       setLoading(false);
     }
@@ -567,16 +586,7 @@ function App() {
 
     // Trigger greeting again
     setTimeout(() => {
-      addAssistantMessage(
-        "مرحباً بك!  أنا مساعدك القانوني الذكي.\n\nيمكنني مساعدتك في:\n-  تحليل القضايا\n- ️ تصنيف القضايا\n-  التوصيات القانونية\n-  البحث في السوابق\n\n---\n\nWelcome! Your AI Legal Assistant.\n\nI can help with:\n- Case Analysis\n- Classification\n- Legal Recommendations\n- Precedent Search",
-        "greeting",
-        [],
-        null,
-        [
-          { label: "Upload Case | رفع قضية", action: "upload" },
-          { label: "Paste Text | لصق نص", action: "paste_text" }
-        ]
-      );
+      pushGreetingMessage();
     }, 100);
   };
 
@@ -634,18 +644,19 @@ function App() {
     }
   };
 
-  const extractArabicLabel = (label, fallbackAction) => {
+  const extractLocalizedLabel = (label, fallbackAction) => {
     const raw = (label || '').toString();
     if (!raw) return fallbackAction || '';
     const parts = raw.split('|').map(p => p.trim()).filter(Boolean);
     const arabicPart = parts.find(p => /[\u0600-\u06FF]/.test(p));
-    if (arabicPart) return arabicPart;
-    return parts[0] || fallbackAction || '';
+    const englishPart = parts.find(p => !/[\u0600-\u06FF]/.test(p));
+    if (language === 'ar') return arabicPart || parts[0] || fallbackAction || '';
+    return englishPart || parts[0] || fallbackAction || '';
   };
 
   const handleSuggestedAction = (action, label) => {
     const normalizedAction = (action || '').toString().trim().toLowerCase();
-    const arabicLabel = extractArabicLabel(label, normalizedAction);
+    const localizedLabel = extractLocalizedLabel(label, normalizedAction);
     console.log("Suggested action clicked:", normalizedAction, label);
 
     switch (normalizedAction) {
@@ -669,10 +680,10 @@ function App() {
       case 'compensation':
       case 'entities':
         // Send the action string directly to trigger exact intent matching
-        sendChatMessage(normalizedAction, arabicLabel);
+        sendChatMessage(normalizedAction, localizedLabel);
         break;
       default:
-        sendChatMessage(normalizedAction || label || '', arabicLabel);
+        sendChatMessage(normalizedAction || label || '', localizedLabel);
         break;
     }
   };
@@ -710,6 +721,9 @@ function App() {
       <Header
         healthStatus={healthStatus}
         onSettings={() => setShowSettings(true)}
+        language={language}
+        onToggleLanguage={() => setLanguage(prev => (prev === 'ar' ? 'en' : 'ar'))}
+        text={uiText}
       />
 
       {/* Sidebar - Conversations */}
@@ -721,6 +735,8 @@ function App() {
         onDelete={handleDeleteConversation}
         onArchive={handleArchiveConversation}
         onClearHistory={handleClearData}
+        language={language}
+        text={uiText}
       />
 
       {/* Main Content Area */}
@@ -729,7 +745,7 @@ function App() {
         <button
           className={`edge-toggle sidebar-trigger ${!showSidebar ? 'collapsed' : ''}`}
           onClick={() => setShowSidebar(!showSidebar)}
-          title={showSidebar ? "إخفاء السجل" : "عرض السجل"}
+          title={showSidebar ? uiText.toggleSidebarHide : uiText.toggleSidebarShow}
         >
           <PanelRight size={18} />
         </button>
@@ -737,7 +753,7 @@ function App() {
         <button
           className={`edge-toggle tools-trigger ${!showTools ? 'collapsed' : ''}`}
           onClick={() => setShowTools(!showTools)}
-          title={showTools ? "إخفاء الأدوات" : "عرض الأدوات"}
+          title={showTools ? uiText.toggleToolsHide : uiText.toggleToolsShow}
         >
           <PanelLeft size={18} />
         </button>
@@ -746,18 +762,15 @@ function App() {
           {messages.length === 0 ? (
             <div className="chat-empty-state">
               <div className="chat-empty-icon"></div>
-              <h2 className="chat-empty-title">
-                أهلاً بك في المساعد القانوني
-              </h2>
-              <p className="chat-empty-subtitle-en en-large">Welcome to Legal AI Assistant</p>
-              <p className="chat-empty-subtitle">ابدأ برفع ملف قانوني أو اطرح سؤالاً</p>
-              <p className="chat-empty-subtitle-en">Upload a document or ask a question to begin</p>
+              <h2 className="chat-empty-title">{uiText.emptyWelcomeTitle}</h2>
+              <p className="chat-empty-subtitle">{uiText.emptyWelcomeSubtitle}</p>
             </div>
           ) : (
             messages.map((msg) => (
               <Message
                 key={msg.id}
                 message={msg}
+                language={language}
                 onCopy={() => handleMessageAction(msg.id, 'copy')}
                 onRegenerate={() => handleMessageAction(msg.id, 'regenerate')}
                 onFeedback={(id, type) => console.log('Feedback:', id, type)}
@@ -773,7 +786,7 @@ function App() {
               <div className="chat-loading-icon"></div>
               <div className="thinking-text">
                 <ThinkingIndicator message="جاري معالجة طلبك..." />
-                <div className="en-tiny">Processing your request...</div>
+                <div className="en-tiny">{uiText.loadingText}</div>
               </div>
             </div>
           )}
@@ -788,19 +801,20 @@ function App() {
           disabled={loading}
           maxChars={2000}
           showSlashCommands={true}
+          language={language}
         />
       </main>
 
       {/* Tools Panel */}
       <ToolsPanel
         uploadedCase={analysis ? {
-          name: selectedFile?.name || 'القضية المرفوعة',
+          name: selectedFile?.name || uiText.uploadedCaseName,
           type: analysis.classification.name_ar,
           pages: messages.filter(m => m.fileData).length > 0 ? 'متعدد' : '1',
           timestamp: new Date().toISOString(),
           keywords: [
             analysis.classification.name_ar,
-            'قضية قانونية'
+            uiText.uploadedCaseTypeKeyword
           ]
         } : null}
         relatedCases={analysis?.related_cases || []}
@@ -863,7 +877,7 @@ function App() {
             doc.save(`case-analysis-${currentConversationId || Date.now()}.pdf`);
           } catch (err) {
             console.error("PDF Export failed:", err);
-            alert("Failed to export PDF.");
+            alert(uiText.exportFail);
           }
         }}
         onRegenerate={() => {
@@ -894,8 +908,8 @@ function App() {
           } else {
             setViewingCase({
               id: caseId,
-              title: 'قضية تجارية رقم ٤٥٣ (Commercial Case #453)',
-              type: 'تجاري (Commercial)',
+              title: uiText.fallbackCaseTitle,
+              type: uiText.fallbackCaseType,
               year: '2024',
               similarity: 0.85,
               abstract: 'تتعلق هذه القضية بنزاع حول عقود التوريد وتأخير التسليم، حيث حكمت المحكمة بالتعويض عن الضرر الفعلي.',
@@ -907,6 +921,8 @@ function App() {
             });
           }
         }}
+        language={language}
+        text={uiText}
       />
 
       {/* Settings Modal */}
@@ -918,6 +934,7 @@ function App() {
         fontSize={fontSize}
         onFontSizeChange={handleFontSizeChange}
         onClearData={handleClearData}
+        text={uiText}
       />
 
       {/* Related Case Modal */}
@@ -937,3 +954,5 @@ export default function AppWithErrorBoundary() {
     </ErrorBoundary>
   );
 }
+
+

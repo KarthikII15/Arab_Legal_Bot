@@ -3,10 +3,40 @@ import { Copy, RotateCcw, ThumbsUp, ThumbsDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { FileAttachment } from './FileAttachment';
 
+const hasArabic = (value = '') => /[\u0600-\u06FF]/.test(String(value));
+
+const getLocalizedActionLabel = (label, action, language) => {
+  const raw = (label || '').toString().trim();
+  if (!raw) return (action || '').toString().replace(/_/g, ' ');
+
+  const parts = raw.split('|').map(part => part.trim()).filter(Boolean);
+  if (parts.length === 1) return parts[0];
+
+  const ar = parts.find(part => hasArabic(part));
+  const en = parts.find(part => !hasArabic(part));
+  if (language === 'ar') return ar || parts[0];
+  return en || parts[0];
+};
+
+const getPreferredMessageText = (message, language) => {
+  const content = (message.content || '').toString();
+  const translation = (message.translation || '').toString();
+  if (!translation) return content;
+
+  if (language === 'ar') {
+    if (hasArabic(content)) return content;
+    if (hasArabic(translation)) return translation;
+    return content;
+  }
+
+  if (!hasArabic(content)) return content;
+  if (translation && !hasArabic(translation)) return translation;
+  return content;
+};
+
 /**
  * Message Component
- * Display single message with actions (copy, regenerate, feedback)
- * Supports rich content including markdown and citations
+ * Display single message with actions (copy, regenerate, feedback).
  */
 export function Message({
   message,
@@ -14,16 +44,40 @@ export function Message({
   onRegenerate,
   onFeedback,
   onActionClick,
-  showActions = true
+  showActions = true,
+  language = 'ar'
 }) {
   const [copied, setCopied] = useState(false);
   const [feedbackGiven, setFeedbackGiven] = useState(null);
 
   const isUser = message.role === 'user';
   const messageClass = isUser ? 'user' : 'assistant';
+  const localizedContent = getPreferredMessageText(message, language);
+
+  const labels = language === 'ar'
+    ? {
+      sources: 'المصادر',
+      article: 'المادة',
+      ruling: 'المنطوق',
+      copy: 'نسخ',
+      copied: 'تم النسخ',
+      regenerate: 'إعادة توليد',
+      helpful: 'إجابة مفيدة',
+      notHelpful: 'إجابة غير مفيدة'
+    }
+    : {
+      sources: 'Sources',
+      article: 'Article',
+      ruling: 'Ruling',
+      copy: 'Copy',
+      copied: 'Copied',
+      regenerate: 'Regenerate',
+      helpful: 'Helpful',
+      notHelpful: 'Not helpful'
+    };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(message.content);
+    navigator.clipboard.writeText(localizedContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     onCopy?.(message.id);
@@ -40,12 +94,10 @@ export function Message({
 
   return (
     <div className={`message ${messageClass}`}>
-      {/* Avatar */}
       <div className="message-avatar">
-        {isUser ? '' : '️'}
+        {isUser ? '' : '⚖️'}
       </div>
 
-      {/* Message Content */}
       <div className="message-bubble">
         <div className="message-text">
           {message.fileData && (
@@ -53,20 +105,9 @@ export function Message({
               <FileAttachment file={message.fileData} />
             </div>
           )}
-          <ReactMarkdown>{message.content}</ReactMarkdown>
+          <ReactMarkdown>{localizedContent}</ReactMarkdown>
         </div>
 
-        {/* Translation Block */}
-        {message.translation && (
-          <div className="message-translation">
-            <div className="translation-divider"></div>
-            <div className="translation-content">
-              <ReactMarkdown>{message.translation}</ReactMarkdown>
-            </div>
-          </div>
-        )}
-
-        {/* Citations */}
         {message.citations && message.citations.length > 0 && String(message.intent || '').startsWith('draft') && (
           <div className="citations-container">
             {message.citations
@@ -81,7 +122,7 @@ export function Message({
               .length > 0 && (
                 <>
                   <div className="citations-header">
-                    المصادر | Sources:
+                    {labels.sources}
                   </div>
                   {message.citations
                     .filter(citation =>
@@ -100,11 +141,11 @@ export function Message({
                       >
                         <div className="citation-source">
                           <span className="citation-badge">
-                            {citation.source ? citation.source.substring(0, 20) : 'Source'}
+                            {citation.source ? citation.source.substring(0, 20) : labels.sources}
                           </span>
                           {citation.article && (
                             <span className="citation-article">
-                              المادة {citation.article} | Article {citation.article}
+                              {labels.article} {citation.article}
                             </span>
                           )}
                         </div>
@@ -113,8 +154,9 @@ export function Message({
                         </div>
                         {citation.metadata?.judgment && (
                           <div className="citation-judgment" style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-primary-dark)', borderLeft: '2px solid var(--color-primary)', paddingLeft: '0.5rem' }}>
-                            <strong>المنطوق:</strong> {citation.metadata.judgment}
-                            <div className="en-tiny"><strong>Ruling:</strong> {citation.metadata.judgment_en || 'Refer to translation block'}</div>
+                            <strong>{labels.ruling}:</strong> {language === 'ar'
+                              ? citation.metadata.judgment
+                              : (citation.metadata.judgment_en || citation.metadata.judgment)}
                           </div>
                         )}
                       </div>
@@ -124,7 +166,6 @@ export function Message({
           </div>
         )}
 
-        {/* Suggested Actions */}
         {message.suggested_actions && message.suggested_actions.length > 0 && !isUser && (
           <div className="suggested-actions-container">
             {message.suggested_actions.map((action, idx) => (
@@ -134,54 +175,46 @@ export function Message({
                 onClick={() => onActionClick?.(action.action, action.label)}
               >
                 <div className="btn-text-stack">
-                  <span>{action.label}</span>
-                  <span className="en-tiny">{action.action.replace(/_/g, ' ')}</span>
+                  <span>{getLocalizedActionLabel(action.label, action.action, language)}</span>
                 </div>
               </button>
             ))}
           </div>
         )}
 
-        {/* Message Time */}
         <div className="message-time">
-          {new Date(message.timestamp).toLocaleTimeString('ar-SA')}
+          {new Date(message.timestamp).toLocaleTimeString(language === 'ar' ? 'ar-SA' : 'en-US')}
         </div>
 
-        {/* Action Buttons (Now Inside Bubble) */}
         {showActions && !isUser && (
           <div className="message-actions">
-            {/* Copy Button */}
             <button
               className="action-button"
               onClick={handleCopy}
-              title={copied ? 'تم النسخ | Copied' : 'نسخ | Copy'}
+              title={copied ? labels.copied : labels.copy}
             >
               <Copy size={12} className="btn-icon-spacing" />
               <div className="btn-text-stack">
-                <span>{copied ? 'تم النسخ' : 'نسخ'}</span>
-                <span className="en-tiny">{copied ? 'Copied' : 'Copy'}</span>
+                <span>{copied ? labels.copied : labels.copy}</span>
               </div>
             </button>
 
-            {/* Regenerate Button */}
             <button
               className="action-button"
               onClick={handleRegenerate}
-              title="إعادة توليد | Regenerate"
+              title={labels.regenerate}
             >
               <RotateCcw size={12} className="btn-icon-spacing" />
               <div className="btn-text-stack">
-                <span>إعادة توليد</span>
-                <span className="en-tiny">Regenerate</span>
+                <span>{labels.regenerate}</span>
               </div>
             </button>
 
-            {/* Feedback Buttons */}
             <div className="feedback-group">
               <button
                 className={`action-button feedback-btn ${feedbackGiven === 'positive' ? 'active' : ''}`}
                 onClick={() => handleFeedback('positive')}
-                title="إجابة مفيدة | Helpful"
+                title={labels.helpful}
               >
                 <ThumbsUp size={12} />
               </button>
@@ -189,7 +222,7 @@ export function Message({
               <button
                 className={`action-button feedback-btn ${feedbackGiven === 'negative' ? 'active' : ''}`}
                 onClick={() => handleFeedback('negative')}
-                title="إجابة غير مفيدة | Not helpful"
+                title={labels.notHelpful}
               >
                 <ThumbsDown size={12} />
               </button>

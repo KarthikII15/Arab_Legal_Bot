@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Plus, MessageSquare, Trash2, Archive, X } from 'lucide-react';
-import './TooltipStyles.css'; // Import tooltip styles
+import './TooltipStyles.css';
 
 /**
  * Sidebar Component
- * Conversation history with search, new chat, and actions
+ * Conversation history with search, new chat, and actions.
  */
 export function Sidebar({
   conversations = [],
@@ -14,7 +14,9 @@ export function Sidebar({
   onSelect,
   onDelete,
   onArchive,
-  onClearHistory
+  onClearHistory,
+  language = 'ar',
+  text
 }) {
   const [searchText, setSearchText] = useState('');
   const [showContextMenu, setShowContextMenu] = useState(null);
@@ -32,47 +34,47 @@ export function Sidebar({
     const diff = now - date;
     const hours = Math.floor(diff / 3600000);
 
-    if (diff < 60000) return 'الآن | Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} دقيقة | ${Math.floor(diff / 60000)}m ago`;
-    if (hours <= 24) return `${hours} ساعات | ${hours}h ago`;
-    return date.toLocaleDateString('ar-SA');
+    if (diff < 60000) return language === 'ar' ? 'الآن' : 'Just now';
+    if (diff < 3600000) {
+      const mins = Math.floor(diff / 60000);
+      return language === 'ar' ? `${mins} دقيقة` : `${mins}m ago`;
+    }
+    if (hours <= 24) return language === 'ar' ? `${hours} ساعات` : `${hours}h ago`;
+    return date.toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US');
   };
 
   const handleDelete = (id, e) => {
     e.stopPropagation();
-    if (window.confirm('هل أنت متأكد من حذف هذه المحادثة؟\nAre you sure you want to delete this conversation?')) {
+    if (window.confirm(text.confirmDeleteConversation)) {
       onDelete(id);
     }
   };
 
   const handleClearAll = () => {
-    if (window.confirm('هل أنت متأكد من مسح جميع المحادثات نهائياً؟\nAre you sure you want to permanently delete all conversations?')) {
+    if (window.confirm(text.confirmClearAllConversations)) {
       onClearHistory();
     }
   };
 
   return (
     <aside className="app-sidebar">
-      {/* Sidebar Header */}
       <div className="sidebar-header">
         <button
           className="sidebar-new-chat btn-primary"
           onClick={onNewChat}
-          title="محادثة جديدة"
+          title={text.sidebarNewChat}
         >
           <Plus size={18} />
           <div className="btn-text-stack">
-            <span className="app-sidebar-text">محادثة جديدة</span>
-            <span className="en-small">New Chat</span>
+            <span className="app-sidebar-text">{text.sidebarNewChat}</span>
           </div>
         </button>
       </div>
 
-      {/* Search */}
       <div className="sidebar-search-container" style={{ padding: '0 1rem 1rem 1rem' }}>
         <input
           type="text"
-          placeholder="بحث عن محادثة... | Search chats..."
+          placeholder={text.sidebarSearchPlaceholder}
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           className="sidebar-search"
@@ -80,12 +82,10 @@ export function Sidebar({
         />
       </div>
 
-      {/* Conversations List */}
       <div className="sidebar-content">
         {filteredConversations.length === 0 ? (
           <div className="sidebar-empty-state" style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>
-            <div>لا توجد محادثات</div>
-            <div className="en-small">No conversations found</div>
+            <div>{text.sidebarNoConversations}</div>
           </div>
         ) : (
           filteredConversations.map(conv => (
@@ -97,7 +97,7 @@ export function Sidebar({
                 const rect = e.currentTarget.getBoundingClientRect();
                 setHoverPos({
                   top: rect.top + (rect.height / 2),
-                  right: window.innerWidth - rect.left + 10 // Position to the left of the item
+                  right: window.innerWidth - rect.left + 10
                 });
                 setHoveredConvId(conv.id);
               }}
@@ -109,14 +109,11 @@ export function Sidebar({
             >
               <MessageSquare size={16} className="conversation-icon" />
 
-              {/* Tooltip Removed form here - Handled outside loop via Portal-like div */}
-
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="conversation-title">
                   {conv.title || (
                     <div className="title-stack">
-                      <span>محادثة بدون عنوان</span>
-                      <span className="en-tiny">Untitled Conversation</span>
+                      <span>{text.sidebarUntitled}</span>
                     </div>
                   )}
                 </div>
@@ -128,12 +125,11 @@ export function Sidebar({
                 </div>
               </div>
 
-              {/* Action Buttons on Hover */}
               <div className="conversation-actions">
                 <button
                   className="btn-action-sm destructive"
                   onClick={(e) => handleDelete(conv.id, e)}
-                  title="حذف | Delete"
+                  title={text.sidebarDelete}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -143,13 +139,12 @@ export function Sidebar({
                     e.stopPropagation();
                     onArchive(conv.id);
                   }}
-                  title="أرشفة | Archive"
+                  title={text.sidebarArchive}
                 >
                   <Archive size={14} />
                 </button>
               </div>
 
-              {/* Context Menu (Alternative) */}
               {showContextMenu === conv.id && (
                 <div className="context-menu" onClick={e => e.stopPropagation()}>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px' }}>
@@ -167,8 +162,7 @@ export function Sidebar({
                   >
                     <Archive size={14} style={{ marginLeft: '0.5rem' }} />
                     <div className="menu-text-stack">
-                      <span>أرشفة</span>
-                      <span className="en-tiny">Archive</span>
+                      <span>{text.sidebarArchive}</span>
                     </div>
                   </button>
                   <button
@@ -181,8 +175,7 @@ export function Sidebar({
                   >
                     <Trash2 size={14} style={{ marginLeft: '0.5rem' }} />
                     <div className="menu-text-stack">
-                      <span>حذف</span>
-                      <span className="en-tiny">Delete</span>
+                      <span>{text.sidebarDelete}</span>
                     </div>
                   </button>
                 </div>
@@ -192,7 +185,6 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Clear All Footer */}
       {conversations.length > 0 && (
         <div className="sidebar-footer" style={{ padding: '1rem', borderTop: '1px solid var(--color-gray-200)' }}>
           <button
@@ -214,13 +206,12 @@ export function Sidebar({
           >
             <Trash2 size={16} />
             <div className="btn-text-stack">
-              <span>مسح السجل بالكامل</span>
-              <span className="en-tiny">Clear Entire History</span>
+              <span>{text.sidebarClearHistory}</span>
             </div>
           </button>
         </div>
       )}
-      {/* Global Tooltip Rendering (Portal) */}
+
       {hoveredConvId && (
         (() => {
           const conv = conversations.find(c => c.id === hoveredConvId);
@@ -243,19 +234,19 @@ export function Sidebar({
                           <li key={idx}>{point}</li>
                         ))
                       ) : (
-                        <li>لا توجد نقاط رئيسية</li>
+                        <li>{text.sidebarNoKeyPoints}</li>
                       )}
                     </ul>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="tooltip-title">{conv.title || 'محادثة بدون عنوان'}</div>
-                  <div className="tooltip-preview">{conv.preview || 'لا يوجد ملخص متاح | No summary available'}</div>
+                  <div className="tooltip-title">{conv.title || text.sidebarUntitled}</div>
+                  <div className="tooltip-preview">{conv.preview || text.sidebarNoSummary}</div>
                 </>
               )}
             </div>,
-            document.body // Render at body root to break z-index/overflow issues from sidebar
+            document.body
           );
         })()
       )}

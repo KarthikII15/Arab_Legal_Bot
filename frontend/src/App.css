@@ -382,12 +382,14 @@ select {
   grid-template-rows: var(--header-height) 1fr;
   grid-template-areas:
     "header header header"
-    "sidebar main tools";
+    "tools main sidebar";
   height: 100vh;
   width: 100vw;
   background: var(--gradient-bg-app);
   overflow: hidden;
   position: relative;
+  /* Keep panel positions stable regardless of page RTL/LTR text direction */
+  direction: ltr;
   transition: grid-template-columns var(--duration-normal) var(--timing-smooth), background var(--duration-normal) var(--timing-smooth);
 }
 
@@ -418,6 +420,7 @@ select {
   padding: 0 var(--space-6);
   display: flex;
   align-items: center;
+  direction: inherit;
 }
 
 [data-theme='dark'] .app-header {
@@ -429,13 +432,14 @@ select {
   background: #d1fae5;
   /* Emerald 100 - Matching Header */
   backdrop-filter: var(--glass-backdrop);
-  border-right: 1px solid #e0e8f0;
+  border-left: 1px solid #e0e8f0;
   box-shadow: var(--glass-shadow);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 10;
   transition: all var(--duration-normal) var(--timing-smooth);
+  direction: inherit;
 }
 
 .sidebar-hidden .app-sidebar {
@@ -456,6 +460,7 @@ select {
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  direction: inherit;
 }
 
 .app-tools {
@@ -463,13 +468,25 @@ select {
   background: var(--color-bg-secondary);
   /* Glassy */
   backdrop-filter: var(--glass-backdrop);
-  border: none;
+  border-right: 1px solid #e0e8f0;
   box-shadow: var(--glass-shadow);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 10;
   transition: all var(--duration-normal) var(--timing-smooth);
+  direction: inherit;
+}
+
+[data-theme='dark'] .app-tools {
+  border-right-color: transparent;
+}
+
+.app-header,
+.app-sidebar,
+.app-main,
+.app-tools {
+  direction: rtl;
 }
 
 .tools-hidden .app-tools {
@@ -758,9 +775,8 @@ select {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-right: auto;
-  /* Push to left in RTL */
-  padding-left: var(--space-4);
+  margin-inline-start: auto;
+  padding-inline-start: var(--space-4);
 }
 
 /* Vertical Divider between Status and Buttons */
@@ -817,6 +833,20 @@ select {
   color: var(--color-primary);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
+}
+
+.language-toggle-btn {
+  width: auto;
+  min-width: 72px;
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-3);
+  gap: var(--space-2);
+}
+
+.language-toggle-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
 }
 
 .btn-icon-white:active:not(:disabled) {

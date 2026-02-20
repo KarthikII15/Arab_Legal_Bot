@@ -10,7 +10,8 @@ export function ChatInput({
   onFileUpload,
   disabled = false,
   maxChars = 2000,
-  showSlashCommands = true
+  showSlashCommands = true,
+  language = 'ar'
 }) {
   const [text, setText] = useState('');
   const [showCommands, setShowCommands] = useState(false);
@@ -156,7 +157,7 @@ export function ChatInput({
           className="chat-input-attach"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
-          title="إرفاق ملف | Attach File"
+          title={language === 'ar' ? 'إرفاق ملف' : 'Attach File'}
         >
           <Paperclip size={20} />
         </button>
@@ -168,7 +169,7 @@ export function ChatInput({
           onChange={handleFileSelect}
           style={{ display: 'none' }}
           accept=".pdf,.docx,.txt,.doc"
-          title="اختر ملف قانوني"
+          title={language === 'ar' ? 'اختر ملف قانوني' : 'Select legal file'}
         />
 
         {/* Text Area */}
@@ -178,7 +179,9 @@ export function ChatInput({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder="اكتب سؤالك هنا... (Enter للإرسال، Shift+Enter لسطر جديد) | Ask your question... (Enter to send, Shift+Enter for new line)"
+          placeholder={language === 'ar'
+            ? 'اكتب سؤالك هنا... (Enter للإرسال، Shift+Enter لسطر جديد)'
+            : 'Ask your question... (Enter to send, Shift+Enter for new line)'}
           className="chat-message-input"
         />
 
@@ -187,7 +190,7 @@ export function ChatInput({
           onClick={handleSend}
           disabled={disabled || !text.trim()}
           className={`chat-input-send ${disabled || !text.trim() ? 'disabled' : ''}`}
-          title="إرسال | Send (Enter)"
+          title={language === 'ar' ? 'إرسال (Enter)' : 'Send (Enter)'}
         >
           <Send size={20} />
         </button>
@@ -196,7 +199,7 @@ export function ChatInput({
       {/* Character Counter */}
       {maxChars && (
         <div className="chat-char-counter" style={{ color: charColor }}>
-          {charCount}/{maxChars} أحرف | characters
+          {charCount}/{maxChars} {language === 'ar' ? 'أحرف' : 'characters'}
         </div>
       )}
     </div>

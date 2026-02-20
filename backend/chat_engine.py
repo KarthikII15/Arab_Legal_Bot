@@ -271,41 +271,54 @@ class ChatEngine:
             if analysis_data is not None:
                  self.context.set_analysis(analysis_data, case_text)
             
-            self.context.add_message("user", user_message)
-            
+            source_language = self._detect_language(user_message)
+            processed_user_message = user_message
             user_translation = None
-            if HAS_TRANSLATOR and any('\u0600' <= char <= '\u06FF' for char in user_message):
+
+            # Keep core chat processing Arabic-first for intent handling and LLM context.
+            if HAS_TRANSLATOR:
                 try:
-                    text_to_translate = user_message[:2000] 
-                    user_translation = GoogleTranslator(source='auto', target='en').translate(text_to_translate)
+                    text_to_translate = user_message[:2000]
+                    if source_language == "en":
+                        arabic_text = GoogleTranslator(source='auto', target='ar').translate(text_to_translate)
+                        if arabic_text:
+                            processed_user_message = arabic_text
+                            # Used by UI to render Arabic when Arabic mode is selected.
+                            user_translation = arabic_text
+                    elif source_language == "ar":
+                        english_text = GoogleTranslator(source='auto', target='en').translate(text_to_translate)
+                        if english_text:
+                            # Used by UI to render English when English mode is selected.
+                            user_translation = english_text
                 except Exception as e:
                     logger.warning(f"User message translation failed: {e}")
-            
-            intent = self.detect_intent(user_message)
+
+            self.context.add_message("user", processed_user_message)
+            intent = self.detect_intent(processed_user_message)
             
             # Detect if this is a NEW case description requiring re-analysis
             is_new_case_input = False
             # Fix: Only treat as new case if text is sufficiently long (> 50 chars)
             # This prevents short commands like "case_summary" from being analyzed as a case
-            if intent == "case_summary" and self.analyzer and len(user_message) > 50:
+            if intent == "case_summary" and self.analyzer and len(processed_user_message) > 50:
                 if not self.context.analysis_data:
                     is_new_case_input = True
-                elif len(user_message) > 400:
+                elif len(processed_user_message) > 400:
                     # Check if text is significantly different from current context
                     current_text = self.context.case_text or ""
-                    if user_message[:100].lower() != current_text[:100].lower():
+                    if processed_user_message[:100].lower() != current_text[:100].lower():
                         is_new_case_input = True
 
             if is_new_case_input:
                 try:
                     logger.info("New case input detected. Triggering re-analysis...")
-                    analysis_result = await self.analyzer(user_message)
+                    analysis_result = await self.analyzer(processed_user_message)
                     analysis_dict = analysis_result.dict()
-                    self.context.set_analysis(analysis_dict, user_message)
+                    self.context.set_analysis(analysis_dict, processed_user_message)
                 except Exception as e:
                     logger.error(f"Auto-analysis failed: {e}")
 
-            response = await self._generate_response(user_message, intent)
+            response = await self._generate_response(processed_user_message, intent)
             
             # Include the current analysis in the response so the frontend stays synced
             response["analysis_data"] = self.context.analysis_data
@@ -313,11 +326,11 @@ class ChatEngine:
             assistant_text = response.get("text", "")
             if HAS_TRANSLATOR and assistant_text and any('\u0600' <= char <= '\u06FF' for char in assistant_text):
                 try:
-                    is_bilingual = "---" in assistant_text
-                    if not is_bilingual and not str(intent).startswith("draft"):
-                        translated_text = GoogleTranslator(source='auto', target='en').translate(assistant_text[:4500])
-                        if translated_text and translated_text.lower() != assistant_text.lower():
-                            response["assistant_translation"] = translated_text
+                    # Always provide English translation for Arabic assistant replies
+                    # so frontend EN mode can consistently render English content.
+                    translated_text = GoogleTranslator(source='auto', target='en').translate(assistant_text[:4500])
+                    if translated_text and translated_text.lower() != assistant_text.lower():
+                        response["assistant_translation"] = translated_text
                 except Exception as e:
                     logger.warning(f"Assistant translation failed: {e}")
 

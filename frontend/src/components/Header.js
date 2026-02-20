@@ -1,25 +1,26 @@
-import { Settings } from 'lucide-react';
+import { Languages, Settings } from 'lucide-react';
 
 /**
  * Header Component
- * Fixed header with logo, status indicator, and controls
- * - Desktop: Full header with text and status
- * - Mobile: Icon-only header with compact status
+ * Fixed header with title, status indicator, language toggle, and settings.
  */
 export function Header({
   healthStatus = 'idle',
-  onSettings
+  onSettings,
+  language = 'ar',
+  onToggleLanguage,
+  text
 }) {
   const getStatusInfo = () => {
     switch (healthStatus) {
       case 'connected':
-        return { text: 'متصل | Connected', class: 'connected', dot: '●' };
+        return { text: text.statusConnected, class: 'connected' };
       case 'disconnected':
-        return { text: 'قطع الاتصال | Disconnected', class: 'disconnected', dot: '●' };
+        return { text: text.statusDisconnected, class: 'disconnected' };
       case 'connecting':
-        return { text: 'جاري الاتصال | Connecting...', class: 'connecting', dot: '●' };
+        return { text: text.statusConnecting, class: 'connecting' };
       default:
-        return { text: 'يتحقق | Checking...', class: 'idle', dot: '●' };
+        return { text: text.statusChecking, class: 'idle' };
     }
   };
 
@@ -27,31 +28,37 @@ export function Header({
 
   return (
     <header className="app-header">
-      {/* Logo Section */}
       <div className="header-logo">
-        <div className="header-logo-icon"></div>
         <div className="header-logo-text">
-          <h1>مساعد القانون | Legal AI</h1>
-          <p>أداة تحليل القضايا القانونية</p>
-          <p className="subtitle-en">Legal Case Analysis Assistant</p>
+          <h1>{text.headerTitle}</h1>
+          <p>{text.headerSubtitleAr}</p>
+          <p className="subtitle-en">{text.headerSubtitleEn}</p>
         </div>
       </div>
 
-      {/* Controls */}
       <div className="header-controls">
         <div className="status-indicator" title={status.text}>
           <div className={`status-dot ${status.class}`} />
           <div className="status-text-stack">
-            <span>{status.text.split('|')[0]}</span>
-            <span className="en-small">{status.text.split('|')[1]}</span>
+            <span>{status.text}</span>
           </div>
         </div>
 
-        {/* Settings Button */}
+        <button
+          className="btn-icon btn-icon-white language-toggle-btn"
+          onClick={onToggleLanguage}
+          title={`${language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}`}
+          aria-label="Toggle language"
+        >
+          <Languages size={18} />
+          <span className="language-toggle-label">{text.languageLabel}</span>
+        </button>
+
         <button
           className="btn-icon btn-icon-white"
           onClick={onSettings}
-          title="الإعدادات | Settings"
+          title={text.settings}
+          aria-label={text.settings}
         >
           <Settings size={20} />
         </button>
