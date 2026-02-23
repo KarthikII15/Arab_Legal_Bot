@@ -1261,8 +1261,8 @@ STRICT INSTRUCTIONS:
         for item in blacklisted:
             text = text.replace(item, "............")
             
-        # 4. Remove generic LLM brackets
-        text = re.sub(r'\[.*?\]', '............', text)
+        # 4. Remove generic LLM brackets (but keep valid Markdown links [text](url))
+        text = re.sub(r'\[.*?\](?!\()', '............', text)
             
         return text.strip()
 
