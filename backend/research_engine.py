@@ -23,13 +23,13 @@ class LegalResearchEngine:
                 self.index = faiss.read_index(self.index_path)
                 with open(self.metadata_path, 'rb') as f:
                     self.metadata = pickle.load(f)
-                print(f" Legal Research Engine loaded. {len(self.metadata)} articles indexed.")
+                print(f"[OK] Legal Research Engine loaded. {len(self.metadata)} articles indexed.")
             except Exception as e:
-                print(f" Error loading Legal Research Engine: {e}")
+                print(f"[ERROR] Error loading Legal Research Engine: {e}")
                 self.index = None
                 self.metadata = []
         else:
-            print(f"️ Warning: Legal Research Engine index not found at {self.model_dir}")
+            print(f"[WARNING] Legal Research Engine index not found at {self.model_dir}")
             self.index = None
             self.metadata = []
 

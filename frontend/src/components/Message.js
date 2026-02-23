@@ -65,7 +65,15 @@ export function Message({ message, onRegenerate, onFeedback, onActionClick }) {
               <FileAttachment file={message.fileData} />
             </div>
           )}
-          <ReactMarkdown>{displayContent}</ReactMarkdown>
+          <ReactMarkdown
+            components={{
+              a: ({ href, children }) => (
+                <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2dd4bf', textDecoration: 'underline' }}>
+                  {children}
+                </a>
+              )
+            }}
+          >{displayContent}</ReactMarkdown>
 
           {/* Rendering the Bench Memo details if present */}
           {message.content_type === 'bench_memo' && message.details && (
