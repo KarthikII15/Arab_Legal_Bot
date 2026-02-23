@@ -2,6 +2,9 @@ version: '3.8'
 
 services:
   backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: ghcr.io/karthikii15/legal-assistant-backend:latest
     container_name: legal-assistant-backend
     ports:
