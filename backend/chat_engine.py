@@ -583,8 +583,8 @@ How can I help you today?""",
         win_rate = trends.get("plaintiff_win_rate", 0)
         sample_size = flags["sample_size"]
         if flags["can_show_win_rate"]:
-            legal_position_ar = f"بناءً على {sample_size} سوابق قضائية مماثلة، تبلغ نسبة فوز المدعي حوالي {win_rate}%."
-            legal_position_en = f"Based on {sample_size} historical precedents, the plaintiff win rate is approximately {win_rate}%."
+            legal_position_ar = f"تم العثور على {sample_size} سوابق قضائية مماثلة."
+            legal_position_en = f"Based on {sample_size} historical precedents."
         else:
             legal_position_ar = f"تم العثور على {sample_size} سوابق، لكن حجم العينة غير كافٍ لإخراج نسبة فوز موثوقة."
             legal_position_en = f"{sample_size} precedents were found, but this sample is too small for a reliable win-rate statistic."
@@ -676,8 +676,8 @@ Case Classification:
             case_status_ar = "تم الحكم فيها"
             case_status_en = "Already Judged"
         elif flags["can_show_win_rate"]:
-            case_status_ar = f"نسبة فوز المدعي: {win_rate}%"
-            case_status_en = f"Plaintiff Win Rate: {win_rate}%"
+            case_status_ar = f"تحت الدراسة"
+            case_status_en = f"Under Review"
         else:
             case_status_ar = "حجم العينة غير كافٍ لعرض نسبة فوز موثوقة"
             case_status_en = "Sample size is insufficient for a reliable win-rate statistic"
@@ -772,11 +772,11 @@ Case Classification:
         else:
             ar_text = (
                 f"الاتجاهات الإحصائية (بناءً على {flags['sample_size']} سوابق):\n\n"
-                f"**معدل فوز المدعي:** {trends.get('plaintiff_win_rate', 0)}%"
+                f"**حالة القضايا المشابهة:** تحت الدراسة"
             )
             en_text = (
                 f"Trend Statistics (Based on {flags['sample_size']} cases):\n\n"
-                f"**Plaintiff Win Rate:** {trends.get('plaintiff_win_rate', 0)}%"
+                f"**Precedents Status:** Under Review"
             )
 
         return {
@@ -1284,8 +1284,8 @@ STRICT INSTRUCTIONS:
         flags = self._stats_flags(trends)
         if flags["can_show_win_rate"]:
             text = (
-                f"نسبة فوز المدعي التقريبية: {trends.get('plaintiff_win_rate', 0)}%\n"
-                f"Approximation of Plaintiff win rate: {trends.get('plaintiff_win_rate', 0)}%"
+                f"البيانات قيد المراجعة للتحليل الإحصائي.\n"
+                f"Data is under review for statistical analysis."
             )
         else:
             text = (
