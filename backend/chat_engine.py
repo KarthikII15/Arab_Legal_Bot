@@ -488,125 +488,89 @@ How can I help you today?""",
         case_type_en = clf.get('name_en', '').lower()
         
         # Domain-Sensitive Principle Selection
-        # Helper to attach BOE citation link
-        def _cite(principle_ar, principle_en, cite_key):
-            cite = BOE_CITATIONS.get(cite_key, {})
-            if cite:
-                ar_link = f"{principle_ar}\n  > [{cite['article_ar']}]({cite['url']})"
-                en_link = f"{principle_en}\n  > [{cite['article_en']}]({cite['url']})"
-                return ar_link, en_link
-            return principle_ar, principle_en
+        # Collect citation keys for the Legal References section
+        used_citations = []
 
         if "traffic" in case_type_en or "accident" in case_type_en or "injury" in case_type_en:
-            p1_ar, p1_en = _cite(
+            domain_principles_ar = [
                 "• المسؤولية عن الضرر - كل خطأ سبب ضرراً للغير يلزم من ارتكبه بالتعويض.",
+                "• الضمان - المتسبب في الضرر ضامن وإن لم يتعمد."
+            ]
+            domain_principles_en = [
                 "• Liability for Harm - Any fault causing harm to others obligates compensation.",
-                "traffic_liability"
-            )
-            p2_ar, p2_en = _cite(
-                "• الضمان - المتسبب في الضرر ضامن وإن لم يتعمد.",
-                "• Tort Liability - The cause of harm is liable regardless of intent.",
-                "tort_liability"
-            )
-            domain_principles_ar = [p1_ar, p2_ar]
-            domain_principles_en = [p1_en, p2_en]
+                "• Tort Liability - The cause of harm is liable regardless of intent."
+            ]
+            used_citations = ["traffic_liability", "tort_liability"]
         elif "intellectual" in case_type_en or "property" in case_type_en and "real" not in case_type_en:
-            p1_ar, p1_en = _cite(
+            domain_principles_ar = [
                 "• حقوق الملكية الفكرية - حماية حقوق الطبع والنشر والعلامات التجارية وبراءات الاختراع.",
-                "• Intellectual Property Rights - Protection of copyrights, trademarks, and patents.",
-                "ip_rights"
-            )
-            p2_ar, p2_en = _cite(
                 "• المسؤولية غير المباشرة - مسؤولية الطرف الذي يسهل أو يساهم في الانتهاك.",
+                "• الملاذ الآمن لمزودي الخدمات - حماية مزودي خدمات الإنترنت إذا اتخذوا إجراءات معقولة."
+            ]
+            domain_principles_en = [
+                "• Intellectual Property Rights - Protection of copyrights, trademarks, and patents.",
                 "• Indirect / Vicarious Liability - Liability of parties who facilitate or contribute to infringement.",
-                "indirect_liability"
-            )
-            p3_ar, p3_en = _cite(
-                "• الملاذ الآمن لمزودي الخدمات - حماية مزودي خدمات الإنترنت إذا اتخذوا إجراءات معقولة.",
-                "• Safe Harbor Doctrine - Protection for ISPs if reasonable measures are taken against infringement.",
-                "safe_harbor"
-            )
-            domain_principles_ar = [p1_ar, p2_ar, p3_ar]
-            domain_principles_en = [p1_en, p2_en, p3_en]
+                "• Safe Harbor Doctrine - Protection for ISPs if reasonable measures are taken against infringement."
+            ]
+            used_citations = ["ip_rights", "indirect_liability", "safe_harbor"]
         elif "commercial" in case_type_en or "contract" in case_type_en or "partnership" in case_type_en:
             if principles:
-                domain_principles_ar = []
-                domain_principles_en = []
-                for p in principles[:3]:
-                    pid = p.get('id', '')
-                    cite = BOE_CITATIONS.get(pid, {})
-                    ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
-                    en_text = f"• {p.get('name_en', '')}"
-                    if cite:
-                        ar_text += f"\n  > [{cite['article_ar']}]({cite['url']})"
-                        en_text += f"\n  > [{cite['article_en']}]({cite['url']})"
-                    domain_principles_ar.append(ar_text)
-                    domain_principles_en.append(en_text)
+                domain_principles_ar = [f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}" for p in principles[:3]]
+                domain_principles_en = [f"• {p.get('name_en', '')}" for p in principles[:3]]
+                used_citations = [p.get('id', '') for p in principles[:3]]
             else:
-                p1_ar, p1_en = _cite(
+                domain_principles_ar = [
                     "• القوة الملزمة للعقود - العقد شريعة المتعاقدين والعقود ملزمة لأطرافها.",
-                    "• Binding Force of Contracts - Contracts are binding upon the contracting parties.",
-                    "binding_contracts"
-                )
-                p2_ar, p2_en = _cite(
                     "• وجوب الوفاء بالالتزامات - على اليد ما أخذت حتى تؤديه.",
+                    "• المسؤولية المدنية - كل من أحدث ضرراً بالغير يلتزم بتعويضه."
+                ]
+                domain_principles_en = [
+                    "• Binding Force of Contracts - Contracts are binding upon the contracting parties.",
                     "• Obligation to Fulfill Commitments - All obligations must be fulfilled as agreed.",
-                    "obligation_fulfillment"
-                )
-                p3_ar, p3_en = _cite(
-                    "• المسؤولية المدنية - كل من أحدث ضرراً بالغير يلتزم بتعويضه.",
-                    "• Civil Liability - Any party causing harm is obligated to compensate.",
-                    "civil_liability"
-                )
-                domain_principles_ar = [p1_ar, p2_ar, p3_ar]
-                domain_principles_en = [p1_en, p2_en, p3_en]
+                    "• Civil Liability - Any party causing harm is obligated to compensate."
+                ]
+                used_citations = ["binding_contracts", "obligation_fulfillment", "civil_liability"]
         elif "labor" in case_type_en or "employment" in case_type_en:
             if principles:
-                domain_principles_ar = []
-                domain_principles_en = []
-                for p in principles[:3]:
-                    pid = p.get('id', '')
-                    cite = BOE_CITATIONS.get(pid, {})
-                    ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
-                    en_text = f"• {p.get('name_en', '')}"
-                    if cite:
-                        ar_text += f"\n  > [{cite['article_ar']}]({cite['url']})"
-                        en_text += f"\n  > [{cite['article_en']}]({cite['url']})"
-                    domain_principles_ar.append(ar_text)
-                    domain_principles_en.append(en_text)
+                domain_principles_ar = [f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}" for p in principles[:3]]
+                domain_principles_en = [f"• {p.get('name_en', '')}" for p in principles[:3]]
+                used_citations = [p.get('id', '') for p in principles[:3]]
             else:
-                p1_ar, p1_en = _cite(
+                domain_principles_ar = [
                     "• حق إنهاء العقد - ينتهي عقد العمل وفقاً للأحوال المنصوص عليها.",
+                    "• التعويض عن الفصل - يستحق الطرف المتضرر تعويضاً عند الإنهاء بغير سبب."
+                ]
+                domain_principles_en = [
                     "• Termination Rights - Employment contracts terminate per statutory provisions.",
-                    "termination_rights"
-                )
-                p2_ar, p2_en = _cite(
-                    "• التعويض عن الفصل - يستحق الطرف المتضرر تعويضاً عند الإنهاء بغير سبب.",
-                    "• Compensation for Dismissal - Aggrieved party entitled to compensation for invalid termination.",
-                    "compensation_principle"
-                )
-                domain_principles_ar = [p1_ar, p2_ar]
-                domain_principles_en = [p1_en, p2_en]
+                    "• Compensation for Dismissal - Aggrieved party entitled to compensation for invalid termination."
+                ]
+                used_citations = ["termination_rights", "compensation_principle"]
         else:
             if principles:
-                domain_principles_ar = []
-                domain_principles_en = []
-                for p in principles[:3]:
-                    pid = p.get('id', '')
-                    cite = BOE_CITATIONS.get(pid, {})
-                    ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
-                    en_text = f"• {p.get('name_en', '')}"
-                    if cite:
-                        ar_text += f"\n  > [{cite['article_ar']}]({cite['url']})"
-                        en_text += f"\n  > [{cite['article_en']}]({cite['url']})"
-                    domain_principles_ar.append(ar_text)
-                    domain_principles_en.append(en_text)
+                domain_principles_ar = [f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}" for p in principles[:3]]
+                domain_principles_en = [f"• {p.get('name_en', '')}" for p in principles[:3]]
+                used_citations = [p.get('id', '') for p in principles[:3]]
             else:
                 domain_principles_ar = ["لم يتم استخراج مبادئ"]
                 domain_principles_en = ["No principles extracted"]
 
         principles_text_ar = "\n".join(domain_principles_ar)
         principles_text_en = "\n".join(domain_principles_en)
+
+        # Build Legal References section with clickable BOE links
+        refs_ar_lines = []
+        refs_en_lines = []
+        for cite_key in used_citations:
+            cite = BOE_CITATIONS.get(cite_key)
+            if cite:
+                refs_ar_lines.append(f"[{cite['article_ar']}]({cite['url']})")
+                refs_en_lines.append(f"[{cite['article_en']}]({cite['url']})")
+        
+        refs_section_ar = ""
+        refs_section_en = ""
+        if refs_ar_lines:
+            refs_section_ar = "\n\n**المراجع القانونية (هيئة الخبراء):**\n\n" + "\n\n".join(refs_ar_lines)
+            refs_section_en = "\n\n**Legal References (Saudi BOE):**\n\n" + "\n\n".join(refs_en_lines)
         
         rec_text_ar = recommendation.get("recommendation_ar", "لم تتوفر توصيات")
         rec_text_en = recommendation.get("recommendation_en", "No recommendations available")
@@ -633,7 +597,7 @@ How can I help you today?""",
 {principles_text_ar}
  
 **التوصية القانونية:**
-{rec_text_ar}"""
+{rec_text_ar}{refs_section_ar}"""
  
         response_en = f"""### Consultative Analysis Summary
  
@@ -644,7 +608,7 @@ How can I help you today?""",
 {principles_text_en}
  
 **Professional Recommendation:**
-{rec_text_en}"""
+{rec_text_en}{refs_section_en}"""
 
         return {
             "text": f"{response_ar}\n\n---\n\n{response_en}",
