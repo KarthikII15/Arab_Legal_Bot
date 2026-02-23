@@ -420,6 +420,7 @@ def extract_legal_principles(text: str) -> List[Dict]:
                 "name_ar": principle["name_ar"],
                 "name_en": principle["name_en"],
                 "description_ar": principle["description_ar"],
+                "description_en": principle.get("description_en", ""),
                 "source_section": best_match["source_section"],
                 "evidence": best_match["sentence"],
                 "relevance": round(relevance, 2),

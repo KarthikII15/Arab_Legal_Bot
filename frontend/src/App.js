@@ -14,7 +14,6 @@ import { jsPDF } from 'jspdf';
 import { PanelLeft, PanelRight } from 'lucide-react';
 import { getStorageItem, setStorageItem, isStorageAvailable } from './utils/storage';
 import { useLanguage } from './contexts/LanguageContext';
-import { translations } from './translations'; // Added based on user's snippet
 import ScaleLogo from './components/ScaleLogo'; // Added based on user's instruction
 
 // === AXIOS CONFIGURATION ===
@@ -141,6 +140,8 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [healthStatus, setHealthStatus] = useState("checking");
   const [analysis, setAnalysis] = useState(null);
+  const [benchMemo, setBenchMemo] = useState(null);
+  const [fetchingMemo, setFetchingMemo] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [showTools, setShowTools] = useState(true);
 
@@ -379,10 +380,27 @@ function App() {
     }
   };
 
+  const fetchBenchMemo = async () => {
+    if (!analysis || benchMemo || fetchingMemo) return;
+    setFetchingMemo(true);
+    try {
+      const response = await apiClient.post('/bench-memo', {
+        analysis_data: analysis,
+        case_text: analysis.text || ""
+      });
+      setBenchMemo(response.data);
+    } catch (error) {
+      console.error("Error fetching bench memo:", error);
+    } finally {
+      setFetchingMemo(false);
+    }
+  };
+
   const handleClearData = () => {
     setMessages([]);
     setConversations([]);
     setAnalysis(null);
+    setBenchMemo(null);
     setSelectedFile(null);
     setCurrentConversationId(null);
     greetingSent.current = false;
@@ -519,6 +537,7 @@ function App() {
       );
     } finally {
       setLoading(false);
+      setBenchMemo(null);
     }
   };
 
@@ -566,6 +585,7 @@ function App() {
       );
     } finally {
       setLoading(false);
+      setBenchMemo(null);
     }
   };
 
@@ -576,6 +596,7 @@ function App() {
     setCurrentConversationId(null);
     setMessages([]);
     setAnalysis(null);
+    setBenchMemo(null);
     setSelectedFile(null);
     greetingSent.current = false;
 
@@ -597,6 +618,7 @@ function App() {
   const handleSelectConversation = async (convId) => {
     try {
       setLoading(true);
+      setBenchMemo(null);
       // Fetch full conversation details from backend
       const response = await apiClient.get(`/conversations/${convId}`);
       const { messages: loadedMessages, analysis: loadedAnalysis } = response.data;
@@ -613,6 +635,7 @@ function App() {
       console.error("Failed to load conversation:", error);
     } finally {
       setLoading(false);
+      setBenchMemo(null);
     }
   };
 
@@ -928,6 +951,9 @@ function App() {
             });
           }
         }}
+        benchMemo={benchMemo}
+        fetchingMemo={fetchingMemo}
+        onFetchBenchMemo={fetchBenchMemo}
       />
 
       {/* Settings Modal */}

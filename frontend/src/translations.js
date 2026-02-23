@@ -56,7 +56,15 @@ export const translations = {
             slash_tip: "استخدم أوامر التشطة (/) أثناء الكتابة للوصول إلى الأدوات بسرعة.",
             powered_by: "Powered By",
             motivity_labs: "Motivity Labs",
-            ai_notice: "Notice: AI can make mistakes. Please verify all\nlegal citations and recommendations."
+            ai_notice: "Notice: AI can make mistakes. Please verify all\nlegal citations and recommendations.",
+            judge_memo: "مذكرة القاضي",
+            generate_memo: "توليد المذكرة",
+            fetching_memo: "جاري توليد مذكرة القاضي...",
+            memo_facts: "ملخص الوقائع",
+            memo_procedural: "الجانب الإجرائي",
+            memo_issues: "المسائل القانونية",
+            memo_refs: "الأسانيد النظامية",
+            memo_actions: "إجراءات مقترحة"
         },
         error: {
             server_timeout: "انتهت مهلة الاتصال. الخادم لا يستجيب.",
@@ -151,7 +159,15 @@ export const translations = {
             slash_tip: "Use slash commands (/) for quick tool access while typing.",
             powered_by: "Powered By",
             motivity_labs: "Motivity Labs",
-            ai_notice: "Notice: AI can make mistakes. Please verify all\nlegal citations and recommendations."
+            ai_notice: "Notice: AI can make mistakes. Please verify all\nlegal citations and recommendations.",
+            judge_memo: "Judge's Memo",
+            generate_memo: "Generate Memo",
+            fetching_memo: "Generating Bench Memo...",
+            memo_facts: "Summary of Facts",
+            memo_procedural: "Procedural Aspect",
+            memo_issues: "Legal Issues",
+            memo_refs: "Statutory References",
+            memo_actions: "Recommended Actions"
         },
         error: {
             server_timeout: "Connection timeout. Server is not responding.",

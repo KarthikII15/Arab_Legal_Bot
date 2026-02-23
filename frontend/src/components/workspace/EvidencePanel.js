@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 
-const EvidencePanel = ({ analysis, caseText, draftText, setDraftText }) => {
+const EvidencePanel = ({
+    analysis,
+    benchMemo,
+    fetchingMemo,
+    onFetchBenchMemo,
+    caseText,
+    draftText,
+    setDraftText
+}) => {
     const [activeTab, setActiveTab] = useState('overview');
 
     if (!analysis) {
@@ -16,6 +24,14 @@ const EvidencePanel = ({ analysis, caseText, draftText, setDraftText }) => {
     }
 
     const { classification, entities, trends, recommendation, legal_principles } = analysis;
+
+    // Handle switching to Judge's Memo tab
+    const handleTabChange = (tab) => {
+        setActiveTab(tab);
+        if (tab === 'judge' && !benchMemo) {
+            onFetchBenchMemo();
+        }
+    };
 
     return (
         <div className="evidence-panel h-100 d-flex flex-column bg-white border-end">
@@ -48,9 +64,17 @@ const EvidencePanel = ({ analysis, caseText, draftText, setDraftText }) => {
                 <li className="nav-item">
                     <button
                         className={`nav-link ${activeTab === 'drafts' ? 'active fw-bold' : ''}`}
-                        onClick={() => setActiveTab('drafts')}
+                        onClick={() => handleTabChange('drafts')}
                     >
                         Draft Editor
+                    </button>
+                </li>
+                <li className="nav-item">
+                    <button
+                        className={`nav-link ${activeTab === 'judge' ? 'active fw-bold' : ''}`}
+                        onClick={() => handleTabChange('judge')}
+                    >
+                        ⚖️ Judge's Memo
                     </button>
                 </li>
             </ul>
@@ -202,6 +226,89 @@ const EvidencePanel = ({ analysis, caseText, draftText, setDraftText }) => {
                             value={draftText || ''}
                             onChange={(e) => setDraftText && setDraftText(e.target.value)}
                         />
+                    </div>
+                )}
+
+                {/* JUDGE'S MEMO TAB */}
+                {activeTab === 'judge' && (
+                    <div className="tab-pane fade show active h-100 d-flex flex-column">
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                            <h6 className="text-uppercase text-muted small fw-bold m-0">Judicial Decision Support</h6>
+                            {benchMemo && (
+                                <button
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(benchMemo.bench_memo_ar);
+                                    }}
+                                >
+                                    Copy Memo
+                                </button>
+                            )}
+                        </div>
+
+                        {fetchingMemo ? (
+                            <div className="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-muted">
+                                <div className="spinner-border text-primary mb-3" role="status">
+                                    <span className="visually-hidden">Loading...</span>
+                                </div>
+                                <p>Generating Judge's Bench Memo...</p>
+                            </div>
+                        ) : benchMemo ? (
+                            <div className="bench-memo-content flex-grow-1 overflow-auto bg-light p-3 rounded border shadow-inner" style={{ direction: 'rtl', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                                <div className="memo-section mb-4">
+                                    <h5 className="border-bottom pb-2 text-primary fw-bold">ملخص الوقائع</h5>
+                                    <p>{benchMemo.summary_of_facts}</p>
+                                </div>
+
+                                <div className="memo-section mb-4">
+                                    <h5 className="border-bottom pb-2 text-primary fw-bold">الجانب الإجرائي</h5>
+                                    <div className="p-2 bg-white rounded border">
+                                        <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>
+                                            {benchMemo.procedural_summary}
+                                        </pre>
+                                    </div>
+                                </div>
+
+                                <div className="memo-section mb-4">
+                                    <h5 className="border-bottom pb-2 text-primary fw-bold">المسائل القانونية المحورية</h5>
+                                    <ul className="list-group">
+                                        {benchMemo.legal_issues.map((issue, i) => (
+                                            <li key={i} className="list-group-item list-group-item-action border-0 shadow-sm mb-2 rounded">
+                                                🔹 {issue}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                <div className="memo-section mb-4">
+                                    <h5 className="border-bottom pb-2 text-primary fw-bold">الأسانيد نظامية</h5>
+                                    {benchMemo.statutory_references.map((ref, i) => (
+                                        <div key={i} className="card mb-2 border-0 shadow-sm">
+                                            <div className="card-body p-2 px-3">
+                                                <strong>{ref.article}</strong>
+                                                <p className="small mb-0 text-muted">{ref.context}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="memo-section">
+                                    <h5 className="border-bottom pb-2 text-primary fw-bold">إجراءات مقترحة</h5>
+                                    <div className="alert alert-info py-2 shadow-sm">
+                                        <ul className="mb-0">
+                                            {benchMemo.recommended_actions.map((action, i) => (
+                                                <li key={i}>{action}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-muted">
+                                <p>Click to generate analysis for the Judge.</p>
+                                <button className="btn btn-primary" onClick={onFetchBenchMemo}>Generate Memo</button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

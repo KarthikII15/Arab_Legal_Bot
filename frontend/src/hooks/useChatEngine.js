@@ -9,9 +9,11 @@ export const useChatEngine = () => {
     const [loading, setLoading] = useState(false);
     const [healthStatus, setHealthStatus] = useState("Checking...");
     const [analysis, setAnalysis] = useState(null);
+    const [benchMemo, setBenchMemo] = useState(null); // New state for Judge's Memo
     const [caseText, setCaseText] = useState(null);
     const [draftText, setDraftText] = useState(''); // New state for Draft Editor
     const [showDetailedView, setShowDetailedView] = useState(false); // Can be managed by UI, but kept here for now logic
+    const [fetchingMemo, setFetchingMemo] = useState(false);
 
     const greetingSent = useRef(false);
 
@@ -65,6 +67,24 @@ export const useChatEngine = () => {
         }
     }, []);
 
+    // Fetch Bench Memo
+    const fetchBenchMemo = useCallback(async () => {
+        if (!analysis || benchMemo || fetchingMemo) return;
+
+        setFetchingMemo(true);
+        try {
+            const response = await axios.post(`${API_BASE}/bench-memo`, {
+                analysis_data: analysis,
+                case_text: caseText
+            });
+            setBenchMemo(response.data);
+        } catch (error) {
+            console.error("Error fetching bench memo:", error);
+        } finally {
+            setFetchingMemo(false);
+        }
+    }, [analysis, benchMemo, fetchingMemo, caseText]);
+
     // Analyze Pasted Text
     const analyzeCaseText = useCallback(async (text) => {
         // Add truncated user message for display
@@ -103,6 +123,7 @@ export const useChatEngine = () => {
             );
         } finally {
             setLoading(false);
+            setBenchMemo(null);
         }
     }, [addUserMessage, addAssistantMessage]);
 
@@ -205,13 +226,39 @@ export const useChatEngine = () => {
                 "error",
                 [
                     { label: "Try Again | حاول مرة أخرى", action: "retry" },
-                    { label: "Upload Different File | رفع ملف آخر", action: "upload" }
+                    { label: "Go Home | العودة للرئيسية", action: "home" }
                 ]
             );
         } finally {
             setLoading(false);
+            setBenchMemo(null);
         }
     }, [addUserMessage, addAssistantMessage]);
+
+    // Handle Suggested Actions
+    const handleSuggestedAction = useCallback((action, label) => {
+        const normalizedAction = (action || '').toString().trim().toLowerCase();
+        console.log("Suggested action clicked:", normalizedAction, label);
+
+        switch (normalizedAction) {
+            case 'upload':
+                document.querySelector('input[type="file"]')?.click();
+                break;
+            case 'show_details':
+                setShowDetailedView(true);
+                break;
+            case 'case_summary':
+            case 'similar_cases':
+            case 'recommendations':
+            case 'legal_principles':
+            case 'trends':
+            case 'entities':
+                sendChatMessage(normalizedAction);
+                break;
+            default:
+                sendChatMessage(normalizedAction || label);
+        }
+    }, [sendChatMessage]);
 
     // Initial Greeting (Once)
     useEffect(() => {
@@ -243,6 +290,8 @@ export const useChatEngine = () => {
         messages,
         loading,
         analysis,
+        benchMemo, // Export state
+        fetchingMemo, // Export fetching state
         caseText,
         draftText, // Export state
         setDraftText, // Export setter
@@ -251,6 +300,8 @@ export const useChatEngine = () => {
         setShowDetailedView,
         sendChatMessage,
         handleFileUpload,
+        handleSuggestedAction, // Exporting
+        fetchBenchMemo, // Export function
         checkHealth
     };
 };

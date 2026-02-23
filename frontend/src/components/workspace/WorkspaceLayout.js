@@ -9,6 +9,8 @@ const WorkspaceLayout = () => {
         messages,
         loading,
         analysis,
+        benchMemo,
+        fetchingMemo,
         caseText,
         draftText,
         setDraftText,
@@ -16,6 +18,7 @@ const WorkspaceLayout = () => {
         sendChatMessage,
         handleFileUpload,
         handleSuggestedAction,
+        fetchBenchMemo,
         checkHealth
     } = useChatEngine();
 
@@ -44,6 +47,9 @@ const WorkspaceLayout = () => {
                 <div className="col-lg-7 col-md-6 h-100 overflow-hidden border-end shadow-sm" style={{ zIndex: 5 }}>
                     <EvidencePanel
                         analysis={analysis}
+                        benchMemo={benchMemo}
+                        fetchingMemo={fetchingMemo}
+                        onFetchBenchMemo={fetchBenchMemo}
                         caseText={caseText}
                         draftText={draftText}
                         setDraftText={setDraftText}

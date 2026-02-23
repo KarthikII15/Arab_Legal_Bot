@@ -480,6 +480,158 @@ select {
   pointer-events: none;
 }
 
+/* Tools Tabs */
+.tools-tabs {
+  display: flex;
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.tool-tab {
+  flex: 1;
+  padding: var(--space-3) 0;
+  border: none;
+  background: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  border-bottom: 3px solid transparent;
+}
+
+.tool-tab:hover {
+  color: var(--color-primary);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.tool-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  background: var(--color-bg-primary);
+}
+
+/* Judge's Memo Styling */
+.memo-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10) 0;
+  text-align: center;
+}
+
+.memo-container {
+  padding: var(--space-4);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.memo-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all var(--duration-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.memo-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary-light);
+}
+
+.memo-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(var(--color-primary-rgb), 0.05);
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.memo-card-header h4 {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-dark);
+}
+
+.memo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: white;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-primary);
+  font-size: 1.1rem;
+}
+
+.memo-card-content {
+  padding: var(--space-4);
+  font-size: var(--font-size-sm);
+  line-height: linear-height-relaxed;
+  color: var(--color-text-primary);
+}
+
+.memo-list {
+  padding-right: var(--space-5);
+  margin: 0;
+}
+
+.memo-list li {
+  margin-bottom: var(--space-2);
+}
+
+.memo-list li:last-child {
+  margin-bottom: 0;
+}
+
+[dir="rtl"] .memo-list {
+  padding-left: 0;
+  padding-right: var(--space-5);
+}
+
+[dir="ltr"] .memo-list {
+  padding-right: 0;
+  padding-left: var(--space-5);
+}
+
+.memo-h {
+  font-size: var(--font-size-base);
+  color: var(--color-primary);
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-gray-200);
+  padding-bottom: var(--space-1);
+}
+
+.memo-h:first-of-type {
+  margin-top: 0;
+}
+
+.memo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10) var(--space-4);
+  text-align: center;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-gray-300);
+  margin: var(--space-4);
+}
+
 /* Edge Toggle Buttons */
 .edge-toggle {
   position: absolute;

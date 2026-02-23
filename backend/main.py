@@ -47,11 +47,14 @@ from models import (
     LegalPrinciple, TrendStats, Recommendation, SubType, SupportingPrinciple,
     DraftRequest, DraftResponse, QueryRequest, QueryResponse,
     ChatRequest, ChatResponse, ChatMessage, SuggestedAction, ClearChatRequest, ConversationSummary, ArchiveRequest,
-    SaveConversationRequest
+    SaveConversationRequest,
+    BenchMemoRequest, BenchMemoResponse
 )
 from data_loader import load_cases
 from similarity_engine import SimilarityEngine
 from summarizer_engine import SummarizerEngine
+from chat_engine import ChatEngine
+from bench_memo_engine import bench_memo_engine
 from classification_engine import classify_case, classifier
 from legal_principles import extract_legal_principles
 from trend_analyzer import analyze_trends
@@ -244,6 +247,19 @@ async def summarize_case(request: Request, sum_req: SummarizeRequest):
         raise HTTPException(status_code=500, detail="Failed to summarize text. Please try again.")
 
 
+@app.post("/bench-memo", response_model=BenchMemoResponse)
+async def generate_bench_memo(request: Request, memo_req: BenchMemoRequest):
+    """
+    Generate a Bench Memo for judges based on analysis data.
+    """
+    try:
+        memo = bench_memo_engine.generate_memo(memo_req.analysis_data, memo_req.case_text)
+        return memo
+    except Exception as e:
+        logger.error(f"Error generating bench memo: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def execute_full_analysis(text: str, top_k: int = 5) -> AnalyzeResponse:
     """Standalone logic for full legal analysis pipeline."""
     if not similarity_engine:
@@ -408,6 +424,20 @@ async def process_user_query(request: Request, query_req: QueryRequest):
         logger.error(f"Query processing failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to process query. Please try again.")
 
+
+
+
+@app.post("/api/bench-memo", response_model=BenchMemoResponse)
+async def generate_bench_memo(request: Request, memo_req: BenchMemoRequest):
+    """
+    Generate a Bench Memo for judges based on analysis data.
+    """
+    try:
+        memo = bench_memo_engine.generate_memo(memo_req.analysis_data, memo_req.case_text)
+        return memo
+    except Exception as e:
+        logger.error(f"Error generating bench memo: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 

@@ -60,6 +60,7 @@ class LegalPrinciple(BaseModel):
     name_ar: str
     name_en: str
     description_ar: str
+    description_en: Optional[str] = None
     source_section: str
     evidence: str
     relevance: float
@@ -183,3 +184,20 @@ class SaveConversationRequest(BaseModel):
     messages: List[Dict[str, Any]]
     analysis: Optional[Dict[str, Any]] = None
 
+
+class BenchMemoRequest(BaseModel):
+    analysis_data: AnalyzeResponse
+    case_text: Optional[str] = None
+
+class BenchMemoResponse(BaseModel):
+    summary_of_facts_ar: str
+    summary_of_facts_en: str
+    procedural_summary_ar: str
+    procedural_summary_en: str
+    legal_issues_ar: List[str]
+    legal_issues_en: List[str]
+    statutory_references: List[Dict[str, str]]
+    recommended_actions_ar: List[str]
+    recommended_actions_en: List[str]
+    bench_memo_ar: str
+    bench_memo_en: str

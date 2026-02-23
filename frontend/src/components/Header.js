@@ -1,4 +1,4 @@
-import { Settings, Languages } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 /**
