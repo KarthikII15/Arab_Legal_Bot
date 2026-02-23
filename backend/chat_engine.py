@@ -407,7 +407,8 @@ class ChatEngine:
                 current_analysis = self.context.analysis_data or analysis_data or {}
                 amount = current_analysis.get("recommendation", {}).get("award_amount") or "[قيد التقدير]"
                 facts = {"amount": amount, "المبلغ": amount}
-                response["text"] = self._clean_draft(response["text"], facts)
+                if str(intent).startswith("draft"):
+                    response["text"] = self._clean_draft(response["text"], facts)
 
             return response
             
@@ -710,10 +711,21 @@ Case Classification:
             case_details_ar += f"**التسبيب القانوني:** {reasoning_summary}\n"
             case_details_ar += f"**الحكم:** {judgment_summary}"
             
-            case_details_en += f"\n\n**Precedent {i+1}: {case_id}** ({court} | Similarity: {similarity}%)\n"
-            case_details_en += f"**Facts:** {facts_summary}\n"
-            case_details_en += f"**Legal Reasoning:** {reasoning_summary}\n"
-            case_details_en += f"**Outcome:** {judgment_summary}"
+            facts_en, reasoning_en, judgment_en, court_en = facts_summary, reasoning_summary, judgment_summary, court
+            if HAS_TRANSLATOR and any('\u0600' <= char <= '\u06FF' for char in facts_summary):
+                try:
+                    combined = f"{facts_summary} ||| {reasoning_summary} ||| {judgment_summary} ||| {court}"
+                    translated = GoogleTranslator(source='ar', target='en').translate(combined[:4500])
+                    parts = [p.strip() for p in translated.split("|||")]
+                    if len(parts) == 4:
+                        facts_en, reasoning_en, judgment_en, court_en = parts
+                except Exception as e:
+                    logger.warning(f"Translation failed for precedent {case_id}: {e}")
+            
+            case_details_en += f"\n\n**Precedent {i+1}: {case_id}** ({court_en} | Similarity: {similarity}%)\n"
+            case_details_en += f"**Facts:** {facts_en}\n"
+            case_details_en += f"**Legal Reasoning:** {reasoning_en}\n"
+            case_details_en += f"**Outcome:** {judgment_en}"
 
         ar_text = f"نتائج البحث عن قضايا مشابهة:\n\nلقد وجدنا قضايا مرتبطة بنوع: **{case_type_ar}**. (إجمالي العينة: {sample_size} قضايا)\n\n**الإحصائيات المستخلصة من السوابق:**\n• حالة القضية: {case_status_ar}\n• متوسط التعويض: {ar_comp}\n\n**السوابق والقرارات القضائية:**{case_details_ar}"
         en_text = f"**Similar Case Results:**\n\nWe found precedents related to: **{case_type_en}**. (Total sample: {sample_size} cases)\n\n**Extracted Trend Data:**\n• Case Status: {case_status_en}\n• Average Compensation: {en_comp}\n\n**Detailed Precedents:**{case_details_en}"
