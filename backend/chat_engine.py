@@ -82,72 +82,72 @@ BOE_CITATIONS = {
     "binding_contracts": {
         "article_ar": "نظام المعاملات المدنية، المادة 167",
         "article_en": "Civil Transactions Law, Art. 167",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "obligation_fulfillment": {
         "article_ar": "نظام المعاملات المدنية، المادة 221",
         "article_en": "Civil Transactions Law, Art. 221",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "civil_liability": {
         "article_ar": "نظام المعاملات المدنية، المادة 124",
         "article_en": "Civil Transactions Law, Art. 124",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "compensation_principle": {
         "article_ar": "نظام العمل، المادة 77",
         "article_en": "Labor Law, Art. 77",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a25baf54-0b02-4ac7-8cf9-a9ed00ef16c4/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "termination_rights": {
         "article_ar": "نظام العمل، المادة 74",
         "article_en": "Labor Law, Art. 74",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a25baf54-0b02-4ac7-8cf9-a9ed00ef16c4/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "termination_for_cause": {
         "article_ar": "نظام العمل، المادة 80",
         "article_en": "Labor Law, Art. 80",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a25baf54-0b02-4ac7-8cf9-a9ed00ef16c4/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "traffic_liability": {
         "article_ar": "نظام المرور، المادة 75",
         "article_en": "Traffic Law, Art. 75",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/91b8e0f0-5d56-4fb1-8c49-a9ed00f61a8d/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "tort_liability": {
         "article_ar": "نظام المعاملات المدنية، المادة 124",
         "article_en": "Civil Transactions Law, Art. 124",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "ip_rights": {
         "article_ar": "نظام حماية حقوق المؤلف، المادة 2",
         "article_en": "Copyright Protection Law, Art. 2",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/cf255e4c-b62a-432e-af0e-a9ed00f30a52/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "indirect_liability": {
         "article_ar": "نظام المعاملات المدنية، المادة 125",
         "article_en": "Civil Transactions Law, Art. 125",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "safe_harbor": {
         "article_ar": "نظام التجارة الإلكترونية، المادة 21",
         "article_en": "E-Commerce Law, Art. 21",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/7de27e3c-9e92-4315-8a0c-aa0600d5b4e5/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "burden_of_proof": {
         "article_ar": "نظام الإثبات، المادة 1",
         "article_en": "Evidence Law, Art. 1",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/c3c994ef-9d5e-4b02-a4a4-ab7a00c3f00b/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "evidence_law": {
         "article_ar": "نظام الإثبات، المادة 29",
         "article_en": "Evidence Law, Art. 29",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/c3c994ef-9d5e-4b02-a4a4-ab7a00c3f00b/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     },
     "jurisdiction": {
         "article_ar": "نظام المرافعات الشرعية، المادة 76",
         "article_en": "Sharia Procedures Law, Art. 76",
-        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/1b8e4274-1d8a-4a64-b95d-a9ed00f34d3a/1"
+        "url": "https://mc.gov.sa/en/Regulations/Pages/default.aspx"
     }
 }
 
