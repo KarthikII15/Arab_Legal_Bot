@@ -22,19 +22,6 @@ services:
         reservations:
           memory: 4G
 
-  frontend:
-    image: ghcr.io/karthikii15/legal-assistant-frontend:latest
-    container_name: legal-assistant-frontend
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/certbot:/var/www/certbot:ro
-    depends_on:
-      - backend
-    restart: always
-
 volumes:
   backend_db:
 
