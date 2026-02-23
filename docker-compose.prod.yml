@@ -2,8 +2,9 @@ version: '3.8'
 
 services:
   backend:
-    # REPLACE WITH YOUR GITHUB USERNAME & PACKAGE NAME
-    # Example: ghcr.io/your_username/legal-assistant-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: ghcr.io/karthikii15/legal-assistant-backend:latest
     container_name: legal-assistant-backend
     ports:
@@ -11,12 +12,10 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=5000
-      - CORS_ORIGINS=http://localhost,http://localhost:3000
+      - CORS_ORIGINS=http://localhost,http://localhost:3000,https://legalbot.motivitylabs.com
       - LLM_NUM_THREADS=4
-      # SQLite DB lives in /app/db (separate from /app/data which holds the dataset)
       - DB_PATH=/app/db/chat_history.db
     volumes:
-      # Persist SQLite DB in /app/db — does NOT shadow /app/data (dataset lives there)
       - backend_db:/app/db
     restart: always
     deploy:
