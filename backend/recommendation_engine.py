@@ -89,8 +89,8 @@ def generate_recommendation(
     
     elif win_rate >= 70:
         direction = "plaintiff_likely"
-        recommendation_ar = f"بناءً على تحليل {sample_size} قضية مشابهة، يُرجح نجاح المدعي بنسبة {win_rate}%."
-        recommendation_en = f"Based on analysis of {sample_size} similar cases, plaintiff success is likely ({win_rate}%)."
+        recommendation_ar = f"بناءً على تحليل {sample_size} قضية مشابهة، يُرجح نجاح المدعي."
+        recommendation_en = f"Based on analysis of {sample_size} similar cases, plaintiff success is likely."
         
         if avg_comp > 0 and compensation_count >= MIN_SAMPLE_FOR_STATS:
             recommendation_ar += f"\nمتوسط التعويض في القضايا المماثلة: {avg_comp:,.0f} ريال سعودي."
@@ -98,13 +98,13 @@ def generate_recommendation(
     
     elif win_rate >= 40:
         direction = "uncertain"
-        recommendation_ar = f"بناءً على تحليل {sample_size} قضية مشابهة، النتيجة غير مؤكدة (نسبة نجاح المدعي {win_rate}%)."
-        recommendation_en = f"Based on analysis of {sample_size} similar cases, outcome is uncertain (plaintiff success rate: {win_rate}%)."
+        recommendation_ar = f"بناءً على تحليل {sample_size} قضية مشابهة، النتيجة غير مؤكدة."
+        recommendation_en = f"Based on analysis of {sample_size} similar cases, outcome is uncertain."
     
     else:
         direction = "defendant_likely"
-        recommendation_ar = f"بناءً على تحليل {sample_size} قضية مشابهة، يُرجح رفض الدعوى (نسبة نجاح المدعي {win_rate}% فقط)."
-        recommendation_en = f"Based on analysis of {sample_size} similar cases, case dismissal is likely (plaintiff success rate: only {win_rate}%)."
+        recommendation_ar = f"بناءً على تحليل {sample_size} قضية مشابهة، يُرجح رفض الدعوى."
+        recommendation_en = f"Based on analysis of {sample_size} similar cases, case dismissal is likely."
     
     # ── Add supporting principles ──────────────────────────────────
     supporting_principles = []
