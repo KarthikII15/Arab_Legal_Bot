@@ -492,8 +492,8 @@ How can I help you today?""",
         def _cite(principle_ar, principle_en, cite_key):
             cite = BOE_CITATIONS.get(cite_key, {})
             if cite:
-                ar_link = f"{principle_ar} -- [BOE: {cite['article_ar']}]({cite['url']})"
-                en_link = f"{principle_en} -- [BOE: {cite['article_en']}]({cite['url']})"
+                ar_link = f"{principle_ar}\n  > [{cite['article_ar']}]({cite['url']})"
+                en_link = f"{principle_en}\n  > [{cite['article_en']}]({cite['url']})"
                 return ar_link, en_link
             return principle_ar, principle_en
 
@@ -538,8 +538,8 @@ How can I help you today?""",
                     ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
                     en_text = f"• {p.get('name_en', '')}"
                     if cite:
-                        ar_text += f" -- [BOE: {cite['article_ar']}]({cite['url']})"
-                        en_text += f" -- [BOE: {cite['article_en']}]({cite['url']})"
+                        ar_text += f"\n  > [{cite['article_ar']}]({cite['url']})"
+                        en_text += f"\n  > [{cite['article_en']}]({cite['url']})"
                     domain_principles_ar.append(ar_text)
                     domain_principles_en.append(en_text)
             else:
@@ -570,8 +570,8 @@ How can I help you today?""",
                     ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
                     en_text = f"• {p.get('name_en', '')}"
                     if cite:
-                        ar_text += f" -- [BOE: {cite['article_ar']}]({cite['url']})"
-                        en_text += f" -- [BOE: {cite['article_en']}]({cite['url']})"
+                        ar_text += f"\n  > [{cite['article_ar']}]({cite['url']})"
+                        en_text += f"\n  > [{cite['article_en']}]({cite['url']})"
                     domain_principles_ar.append(ar_text)
                     domain_principles_en.append(en_text)
             else:
@@ -597,8 +597,8 @@ How can I help you today?""",
                     ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
                     en_text = f"• {p.get('name_en', '')}"
                     if cite:
-                        ar_text += f" -- [BOE: {cite['article_ar']}]({cite['url']})"
-                        en_text += f" -- [BOE: {cite['article_en']}]({cite['url']})"
+                        ar_text += f"\n  > [{cite['article_ar']}]({cite['url']})"
+                        en_text += f"\n  > [{cite['article_en']}]({cite['url']})"
                     domain_principles_ar.append(ar_text)
                     domain_principles_en.append(en_text)
             else:
