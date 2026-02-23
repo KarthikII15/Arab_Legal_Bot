@@ -137,8 +137,8 @@ async def startup_event():
         # Load Data
         logger.info("Loading cases...")
         all_cases_global = load_cases()
-        real_cases = [c for c in all_cases_global if c.is_real]
-        logger.info(f"Loaded {len(all_cases_global)} cases ({len(real_cases)} real)")
+        real_cases = all_cases_global  # Use all cases in the dataset to expand corpus for trends
+        logger.info(f"Loaded {len(all_cases_global)} cases for similarity index")
         
         # Initialize Similarity Engine
         similarity_engine = SimilarityEngine()
@@ -523,7 +523,7 @@ async def get_analytics():
     logger.info("Analytics request")
     
     try:
-        real_cases = [c for c in all_cases_global if c.is_real]
+        real_cases = all_cases_global
         
         # Classify all cases
         from classification_engine import classify_case as cc
