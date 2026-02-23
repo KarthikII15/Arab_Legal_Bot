@@ -251,13 +251,14 @@ class ChatEngine:
             return []
             
         for case in cases[:3]: # Limit to top 3 for brevity
+            inner = case.get("case", case)  # RelatedCase nests Case inside .case
             citations.append({
-                "source": case.get("case_id", "Precedent"),
-                "text": case.get("facts", "")[:300] + "...",
-                "article": f"المحكمة: {case.get('court', 'N/A')}",
+                "source": inner.get("case_id", case.get("case_id", "Precedent")),
+                "text": inner.get("facts", "")[:300] + "...",
+                "article": f"المحكمة: {inner.get('court', 'N/A')}",
                 "metadata": {
-                    "judgment": case.get("judgment", ""),
-                    "reasoning": case.get("legal_reasoning", "")
+                    "judgment": inner.get("judgment", ""),
+                    "reasoning": inner.get("legal_reasoning", "")
                 }
             })
         return citations
@@ -491,8 +492,8 @@ How can I help you today?""",
         def _cite(principle_ar, principle_en, cite_key):
             cite = BOE_CITATIONS.get(cite_key, {})
             if cite:
-                ar_link = f"{principle_ar} ([{cite['article_ar']}]({cite['url']}))"
-                en_link = f"{principle_en} ([{cite['article_en']}]({cite['url']}))"
+                ar_link = f"{principle_ar} -- [BOE: {cite['article_ar']}]({cite['url']})"
+                en_link = f"{principle_en} -- [BOE: {cite['article_en']}]({cite['url']})"
                 return ar_link, en_link
             return principle_ar, principle_en
 
@@ -537,8 +538,8 @@ How can I help you today?""",
                     ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
                     en_text = f"• {p.get('name_en', '')}"
                     if cite:
-                        ar_text += f" ([{cite['article_ar']}]({cite['url']}))"
-                        en_text += f" ([{cite['article_en']}]({cite['url']}))"
+                        ar_text += f" -- [BOE: {cite['article_ar']}]({cite['url']})"
+                        en_text += f" -- [BOE: {cite['article_en']}]({cite['url']})"
                     domain_principles_ar.append(ar_text)
                     domain_principles_en.append(en_text)
             else:
@@ -569,8 +570,8 @@ How can I help you today?""",
                     ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
                     en_text = f"• {p.get('name_en', '')}"
                     if cite:
-                        ar_text += f" ([{cite['article_ar']}]({cite['url']}))"
-                        en_text += f" ([{cite['article_en']}]({cite['url']}))"
+                        ar_text += f" -- [BOE: {cite['article_ar']}]({cite['url']})"
+                        en_text += f" -- [BOE: {cite['article_en']}]({cite['url']})"
                     domain_principles_ar.append(ar_text)
                     domain_principles_en.append(en_text)
             else:
@@ -596,8 +597,8 @@ How can I help you today?""",
                     ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
                     en_text = f"• {p.get('name_en', '')}"
                     if cite:
-                        ar_text += f" ([{cite['article_ar']}]({cite['url']}))"
-                        en_text += f" ([{cite['article_en']}]({cite['url']}))"
+                        ar_text += f" -- [BOE: {cite['article_ar']}]({cite['url']})"
+                        en_text += f" -- [BOE: {cite['article_en']}]({cite['url']})"
                     domain_principles_ar.append(ar_text)
                     domain_principles_en.append(en_text)
             else:
@@ -720,18 +721,25 @@ Case Classification:
         case_details_ar = ""
         case_details_en = ""
         for i, case_obj in enumerate(related_cases[:3]):
-            case_id = case_obj.get('case_id', f'سابقة {i+1}')
-            court = case_obj.get('court', 'N/A')
+            # RelatedCase has nested structure: {case: {case_id, facts, ...}, similarity_score, preview}
+            inner = case_obj.get('case', case_obj)  # fallback to case_obj if flat
+            case_id = inner.get('case_id', case_obj.get('case_id', f'Precedent {i+1}'))
+            court = inner.get('court', 'N/A')
             similarity = case_obj.get('similarity_score', 0)
-            facts = case_obj.get('facts', '')
-            reasoning = case_obj.get('legal_reasoning', '')
-            judgment = case_obj.get('judgment', '')
+            facts = inner.get('facts', '')
+            reasoning = inner.get('legal_reasoning', '')
+            judgment = inner.get('judgment', '')
             
             # Condense facts to first 200 chars
-            facts_summary = facts[:200].strip() + '...' if len(facts) > 200 else facts
-            reasoning_summary = reasoning[:250].strip() + '...' if len(reasoning) > 250 else reasoning
-            # Extract the core outcome from judgment (first sentence)
-            judgment_summary = judgment.split('.')[0] + '.' if judgment else 'N/A'
+            facts_summary = facts[:200].strip() + '...' if len(facts) > 200 else (facts or 'N/A')
+            reasoning_summary = reasoning[:250].strip() + '...' if len(reasoning) > 250 else (reasoning or 'N/A')
+            # Extract the core outcome from judgment (first sentence or first 150 chars)
+            if judgment:
+                # Split on Arabic period or Latin period
+                first_sentence = judgment.split('.')[0].strip()
+                judgment_summary = first_sentence[:150] + ('...' if len(first_sentence) > 150 else '.')
+            else:
+                judgment_summary = 'N/A'
             
             case_details_ar += f"\n\n**سابقة {i+1}: {case_id}** ({court} | التشابه: {similarity}%)\n"
             case_details_ar += f"**الوقائع:** {facts_summary}\n"
