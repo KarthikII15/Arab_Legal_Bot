@@ -76,6 +76,82 @@ class ConversationContext:
         self.case_text = None
 
 
+# ── BOE Citation Links for Legal Principles ─────────────────────────────
+# Maps principle keys to their official Saudi Bureau of Experts statute URLs
+BOE_CITATIONS = {
+    "binding_contracts": {
+        "article_ar": "نظام المعاملات المدنية، المادة 167",
+        "article_en": "Civil Transactions Law, Art. 167",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+    },
+    "obligation_fulfillment": {
+        "article_ar": "نظام المعاملات المدنية، المادة 221",
+        "article_en": "Civil Transactions Law, Art. 221",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+    },
+    "civil_liability": {
+        "article_ar": "نظام المعاملات المدنية، المادة 124",
+        "article_en": "Civil Transactions Law, Art. 124",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+    },
+    "compensation_principle": {
+        "article_ar": "نظام العمل، المادة 77",
+        "article_en": "Labor Law, Art. 77",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a25baf54-0b02-4ac7-8cf9-a9ed00ef16c4/1"
+    },
+    "termination_rights": {
+        "article_ar": "نظام العمل، المادة 74",
+        "article_en": "Labor Law, Art. 74",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a25baf54-0b02-4ac7-8cf9-a9ed00ef16c4/1"
+    },
+    "termination_for_cause": {
+        "article_ar": "نظام العمل، المادة 80",
+        "article_en": "Labor Law, Art. 80",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a25baf54-0b02-4ac7-8cf9-a9ed00ef16c4/1"
+    },
+    "traffic_liability": {
+        "article_ar": "نظام المرور، المادة 75",
+        "article_en": "Traffic Law, Art. 75",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/91b8e0f0-5d56-4fb1-8c49-a9ed00f61a8d/1"
+    },
+    "tort_liability": {
+        "article_ar": "نظام المعاملات المدنية، المادة 124",
+        "article_en": "Civil Transactions Law, Art. 124",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+    },
+    "ip_rights": {
+        "article_ar": "نظام حماية حقوق المؤلف، المادة 2",
+        "article_en": "Copyright Protection Law, Art. 2",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/cf255e4c-b62a-432e-af0e-a9ed00f30a52/1"
+    },
+    "indirect_liability": {
+        "article_ar": "نظام المعاملات المدنية، المادة 125",
+        "article_en": "Civil Transactions Law, Art. 125",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/43344715-2ac2-4633-a804-a9ed00f2e49b/1"
+    },
+    "safe_harbor": {
+        "article_ar": "نظام التجارة الإلكترونية، المادة 21",
+        "article_en": "E-Commerce Law, Art. 21",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/7de27e3c-9e92-4315-8a0c-aa0600d5b4e5/1"
+    },
+    "burden_of_proof": {
+        "article_ar": "نظام الإثبات، المادة 1",
+        "article_en": "Evidence Law, Art. 1",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/c3c994ef-9d5e-4b02-a4a4-ab7a00c3f00b/1"
+    },
+    "evidence_law": {
+        "article_ar": "نظام الإثبات، المادة 29",
+        "article_en": "Evidence Law, Art. 29",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/c3c994ef-9d5e-4b02-a4a4-ab7a00c3f00b/1"
+    },
+    "jurisdiction": {
+        "article_ar": "نظام المرافعات الشرعية، المادة 76",
+        "article_en": "Sharia Procedures Law, Art. 76",
+        "url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/1b8e4274-1d8a-4a64-b95d-a9ed00f34d3a/1"
+    }
+}
+
+
 class ChatEngine:
     """
     Handles conversational interactions with the legal analysis system.
@@ -411,45 +487,122 @@ How can I help you today?""",
         case_type_en = clf.get('name_en', '').lower()
         
         # Domain-Sensitive Principle Selection
+        # Helper to attach BOE citation link
+        def _cite(principle_ar, principle_en, cite_key):
+            cite = BOE_CITATIONS.get(cite_key, {})
+            if cite:
+                ar_link = f"{principle_ar} ([{cite['article_ar']}]({cite['url']}))"
+                en_link = f"{principle_en} ([{cite['article_en']}]({cite['url']}))"
+                return ar_link, en_link
+            return principle_ar, principle_en
+
         if "traffic" in case_type_en or "accident" in case_type_en or "injury" in case_type_en:
-            domain_principles_ar = [
+            p1_ar, p1_en = _cite(
                 "• المسؤولية عن الضرر - كل خطأ سبب ضرراً للغير يلزم من ارتكبه بالتعويض.",
-                "• الضمان - المتسبب في الضرر ضامن وإن لم يتعمد."
-            ]
-            domain_principles_en = [
                 "• Liability for Harm - Any fault causing harm to others obligates compensation.",
-                "• Tort Liability - The cause of harm is liable regardless of intent."
-            ]
+                "traffic_liability"
+            )
+            p2_ar, p2_en = _cite(
+                "• الضمان - المتسبب في الضرر ضامن وإن لم يتعمد.",
+                "• Tort Liability - The cause of harm is liable regardless of intent.",
+                "tort_liability"
+            )
+            domain_principles_ar = [p1_ar, p2_ar]
+            domain_principles_en = [p1_en, p2_en]
         elif "intellectual" in case_type_en or "property" in case_type_en and "real" not in case_type_en:
-            domain_principles_ar = [
+            p1_ar, p1_en = _cite(
                 "• حقوق الملكية الفكرية - حماية حقوق الطبع والنشر والعلامات التجارية وبراءات الاختراع.",
-                "• المسؤولية غير المباشرة - مسؤولية الطرف الذي يسهل أو يساهم في الانتهاك.",
-                "• الملاذ الآمن لمزودي الخدمات - حماية مزودي خدمات الإنترنت إذا اتخذوا إجراءات معقولة."
-            ]
-            domain_principles_en = [
                 "• Intellectual Property Rights - Protection of copyrights, trademarks, and patents.",
+                "ip_rights"
+            )
+            p2_ar, p2_en = _cite(
+                "• المسؤولية غير المباشرة - مسؤولية الطرف الذي يسهل أو يساهم في الانتهاك.",
                 "• Indirect / Vicarious Liability - Liability of parties who facilitate or contribute to infringement.",
-                "• Safe Harbor Doctrine - Protection for ISPs if reasonable measures are taken against infringement."
-            ]
+                "indirect_liability"
+            )
+            p3_ar, p3_en = _cite(
+                "• الملاذ الآمن لمزودي الخدمات - حماية مزودي خدمات الإنترنت إذا اتخذوا إجراءات معقولة.",
+                "• Safe Harbor Doctrine - Protection for ISPs if reasonable measures are taken against infringement.",
+                "safe_harbor"
+            )
+            domain_principles_ar = [p1_ar, p2_ar, p3_ar]
+            domain_principles_en = [p1_en, p2_en, p3_en]
         elif "commercial" in case_type_en or "contract" in case_type_en or "partnership" in case_type_en:
-            # Use extracted principles if available, otherwise provide domain defaults
             if principles:
-                domain_principles_ar = [f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}" for p in principles[:3]]
-                domain_principles_en = [f"• {p.get('name_en', '')}" for p in principles[:3]]
+                domain_principles_ar = []
+                domain_principles_en = []
+                for p in principles[:3]:
+                    pid = p.get('id', '')
+                    cite = BOE_CITATIONS.get(pid, {})
+                    ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
+                    en_text = f"• {p.get('name_en', '')}"
+                    if cite:
+                        ar_text += f" ([{cite['article_ar']}]({cite['url']}))"
+                        en_text += f" ([{cite['article_en']}]({cite['url']}))"
+                    domain_principles_ar.append(ar_text)
+                    domain_principles_en.append(en_text)
             else:
-                domain_principles_ar = [
+                p1_ar, p1_en = _cite(
                     "• القوة الملزمة للعقود - العقد شريعة المتعاقدين والعقود ملزمة لأطرافها.",
-                    "• وجوب الوفاء بالالتزامات - على اليد ما أخذت حتى تؤديه.",
-                    "• المسؤولية المدنية - كل من أحدث ضرراً بالغير يلتزم بتعويضه."
-                ]
-                domain_principles_en = [
                     "• Binding Force of Contracts - Contracts are binding upon the contracting parties.",
+                    "binding_contracts"
+                )
+                p2_ar, p2_en = _cite(
+                    "• وجوب الوفاء بالالتزامات - على اليد ما أخذت حتى تؤديه.",
                     "• Obligation to Fulfill Commitments - All obligations must be fulfilled as agreed.",
-                    "• Civil Liability - Any party causing harm is obligated to compensate."
-                ]
+                    "obligation_fulfillment"
+                )
+                p3_ar, p3_en = _cite(
+                    "• المسؤولية المدنية - كل من أحدث ضرراً بالغير يلتزم بتعويضه.",
+                    "• Civil Liability - Any party causing harm is obligated to compensate.",
+                    "civil_liability"
+                )
+                domain_principles_ar = [p1_ar, p2_ar, p3_ar]
+                domain_principles_en = [p1_en, p2_en, p3_en]
+        elif "labor" in case_type_en or "employment" in case_type_en:
+            if principles:
+                domain_principles_ar = []
+                domain_principles_en = []
+                for p in principles[:3]:
+                    pid = p.get('id', '')
+                    cite = BOE_CITATIONS.get(pid, {})
+                    ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
+                    en_text = f"• {p.get('name_en', '')}"
+                    if cite:
+                        ar_text += f" ([{cite['article_ar']}]({cite['url']}))"
+                        en_text += f" ([{cite['article_en']}]({cite['url']}))"
+                    domain_principles_ar.append(ar_text)
+                    domain_principles_en.append(en_text)
+            else:
+                p1_ar, p1_en = _cite(
+                    "• حق إنهاء العقد - ينتهي عقد العمل وفقاً للأحوال المنصوص عليها.",
+                    "• Termination Rights - Employment contracts terminate per statutory provisions.",
+                    "termination_rights"
+                )
+                p2_ar, p2_en = _cite(
+                    "• التعويض عن الفصل - يستحق الطرف المتضرر تعويضاً عند الإنهاء بغير سبب.",
+                    "• Compensation for Dismissal - Aggrieved party entitled to compensation for invalid termination.",
+                    "compensation_principle"
+                )
+                domain_principles_ar = [p1_ar, p2_ar]
+                domain_principles_en = [p1_en, p2_en]
         else:
-            domain_principles_ar = [f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}" for p in principles[:3]] if principles else ["لم يتم استخراج مبادئ"]
-            domain_principles_en = [f"• {p.get('name_en', '')}" for p in principles[:3]] if principles else ["No principles extracted"]
+            if principles:
+                domain_principles_ar = []
+                domain_principles_en = []
+                for p in principles[:3]:
+                    pid = p.get('id', '')
+                    cite = BOE_CITATIONS.get(pid, {})
+                    ar_text = f"• {p.get('name_ar', '')} - {p.get('description_ar', '')}"
+                    en_text = f"• {p.get('name_en', '')}"
+                    if cite:
+                        ar_text += f" ([{cite['article_ar']}]({cite['url']}))"
+                        en_text += f" ([{cite['article_en']}]({cite['url']}))"
+                    domain_principles_ar.append(ar_text)
+                    domain_principles_en.append(en_text)
+            else:
+                domain_principles_ar = ["لم يتم استخراج مبادئ"]
+                domain_principles_en = ["No principles extracted"]
 
         principles_text_ar = "\n".join(domain_principles_ar)
         principles_text_en = "\n".join(domain_principles_en)
@@ -527,10 +680,11 @@ Case Classification:
         }
     
     async def _handle_similar_cases(self, query: str, analysis: Dict) -> Dict[str, Any]:
-        """Provide similar cases (Arabic First)."""
+        """Provide similar cases with enriched per-case details (Arabic First)."""
         trends = analysis.get("trends", {})
         classification = analysis.get("classification", {})
         rec = analysis.get("recommendation", {})
+        related_cases = analysis.get("related_cases", [])
         flags = self._stats_flags(trends)
         direction = rec.get("direction", "").lower()
         is_judgement = direction == "decided_judgement" or "حكم" in str(rec.get("recommendation_ar", "")).lower()
@@ -562,8 +716,35 @@ Case Classification:
             case_status_ar = "حجم العينة غير كافٍ لعرض نسبة فوز موثوقة"
             case_status_en = "Sample size is insufficient for a reliable win-rate statistic"
 
-        ar_text = f"نتائج البحث عن قضايا مشابهة:\n\nلقد وجدنا قضايا مرتبطة بنوع: **{case_type_ar}**. (إجمالي العينة: {sample_size} قضايا)\n\n**الإحصائيات المستخلصة من السوابق:**\n• حالة القضية: {case_status_ar}\n• متوسط التعويض: {ar_comp}\n\n**السوابق والقرارات القضائية (مرفقة أدناه):**\nتم اختيار أهم السوابق القضائية المشابهة لحالتك والمبنية على مبادئ محاكمنا."
-        en_text = f"**Similar Case Results:**\n\nWe found precedents related to: **{case_type_en}**. (Total sample: {sample_size} cases)\n\n**Extracted Trend Data:**\n• Case Status: {case_status_en}\n• Average Compensation: {en_comp}\n\n**Detailed Precedents (Listed Below):**\nWe have identified the most relevant historical decisions matching your case context."
+        # Build enriched per-case details
+        case_details_ar = ""
+        case_details_en = ""
+        for i, case_obj in enumerate(related_cases[:3]):
+            case_id = case_obj.get('case_id', f'سابقة {i+1}')
+            court = case_obj.get('court', 'N/A')
+            similarity = case_obj.get('similarity_score', 0)
+            facts = case_obj.get('facts', '')
+            reasoning = case_obj.get('legal_reasoning', '')
+            judgment = case_obj.get('judgment', '')
+            
+            # Condense facts to first 200 chars
+            facts_summary = facts[:200].strip() + '...' if len(facts) > 200 else facts
+            reasoning_summary = reasoning[:250].strip() + '...' if len(reasoning) > 250 else reasoning
+            # Extract the core outcome from judgment (first sentence)
+            judgment_summary = judgment.split('.')[0] + '.' if judgment else 'N/A'
+            
+            case_details_ar += f"\n\n**سابقة {i+1}: {case_id}** ({court} | التشابه: {similarity}%)\n"
+            case_details_ar += f"**الوقائع:** {facts_summary}\n"
+            case_details_ar += f"**التسبيب القانوني:** {reasoning_summary}\n"
+            case_details_ar += f"**الحكم:** {judgment_summary}"
+            
+            case_details_en += f"\n\n**Precedent {i+1}: {case_id}** ({court} | Similarity: {similarity}%)\n"
+            case_details_en += f"**Facts:** {facts_summary}\n"
+            case_details_en += f"**Legal Reasoning:** {reasoning_summary}\n"
+            case_details_en += f"**Outcome:** {judgment_summary}"
+
+        ar_text = f"نتائج البحث عن قضايا مشابهة:\n\nلقد وجدنا قضايا مرتبطة بنوع: **{case_type_ar}**. (إجمالي العينة: {sample_size} قضايا)\n\n**الإحصائيات المستخلصة من السوابق:**\n• حالة القضية: {case_status_ar}\n• متوسط التعويض: {ar_comp}\n\n**السوابق والقرارات القضائية:**{case_details_ar}"
+        en_text = f"**Similar Case Results:**\n\nWe found precedents related to: **{case_type_en}**. (Total sample: {sample_size} cases)\n\n**Extracted Trend Data:**\n• Case Status: {case_status_en}\n• Average Compensation: {en_comp}\n\n**Detailed Precedents:**{case_details_en}"
 
         return {
             "text": f"{ar_text}\n\n---\n\n{en_text}",
@@ -572,7 +753,7 @@ Case Classification:
                 {"label": "Full Analysis | تحليل شامل", "action": "full_analysis"},
                 {"label": "Recommendations | التوصيات", "action": "recommendations"}
             ],
-            "citations": self._format_case_citations(analysis.get("related_cases", []))
+            "citations": self._format_case_citations(related_cases)
         }
     
     async def _handle_legal_principles(self, query: str, analysis: Dict) -> Dict[str, Any]:
